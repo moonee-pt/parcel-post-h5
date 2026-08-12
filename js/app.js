@@ -13,7 +13,7 @@
     BGM.init();
     // 暴露给控制台调试
     window.__GAME__ = { State, UI, CONFIG, TIER, SKILL, Ad, BGM, BGM_PLAYLIST };
-    console.log('[拆快递盲盒] 启动完成');
+    console.log('[拆盲盒] 启动完成');
 
     // 无存档（首次启动 / 重置后）：自动弹出贴面单，先赚第一笔
     try {

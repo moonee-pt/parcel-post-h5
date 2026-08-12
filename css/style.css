@@ -268,6 +268,34 @@ body { display: flex; align-items: center; justify-content: center; }
 .robot-chip.locked .robot-anim {
   transform: rotate(-4deg);
 }
+/* 暂停时：停在第一帧（f1 显示，f2/f3 隐藏），不再循环 */
+.robot-chip.paused .robot-frame { animation: none !important; }
+.robot-chip.paused .robot-frame.f1 { opacity: 1; }
+.robot-chip.paused .robot-frame.f2,
+.robot-chip.paused .robot-frame.f3 { opacity: 0; }
+/* 头顶状态小字（金币不足 / 存储已满 / 已暂停）：放到 chip 下方，避免和 storage-badge 撞；用实心背景色更醒目 */
+.robot-chip .robot-tip {
+  position: absolute;
+  bottom: -15px; left: 48%;
+  transform: translateX(-50%);
+  font-family: 'Noto Serif SC', serif; font-size: 11px;
+  font-weight: 800; letter-spacing: 0.5px;
+  padding: 3px 9px;
+  border: 1.5px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  white-space: nowrap;
+  line-height: 1.2;
+  z-index: 6;
+  pointer-events: none;
+  box-shadow: 1.5px 1.5px 0 var(--ink);
+}
+.robot-chip .robot-tip.manual { background: var(--ink-soft); border-color: var(--ink-soft); color: var(--paper); }
+.robot-chip .robot-tip.cant-afford { background: var(--red); border-color: var(--red); color: var(--paper); }
+.robot-chip .robot-tip.storage-full { background: #b8860b; border-color: #b8860b; color: var(--paper); }
+/* 系统原因暂停时 chip 边框/阴影变对应色，区别于玩家手动 paused（灰色） */
+.robot-chip.cant-afford { box-shadow: 2px 2px 0 var(--red); border-color: var(--red); }
+.robot-chip.storage-full { box-shadow: 2px 2px 0 #b8860b; border-color: #b8860b; }
 .robot-chip .robot-text {
   display: none;
 }
@@ -1010,9 +1038,9 @@ body { display: flex; align-items: center; justify-content: center; }
 }
 @keyframes bgmPulse {
   0%   { transform: scale(1)    rotate(0deg); }
-  25%  { transform: scale(1.05) rotate(-2deg); }
+  25%  { transform: scale(1.05) rotate(-8deg); }
   50%  { transform: scale(1)    rotate(0deg); }
-  75%  { transform: scale(1.05) rotate(2deg); }
+  75%  { transform: scale(1.05) rotate(8deg); }
   100% { transform: scale(1)    rotate(0deg); }
 }
 
@@ -1085,6 +1113,12 @@ body { display: flex; align-items: center; justify-content: center; }
   transition: color 0.2s;
 }
 .restock-toggle .rt-tier.changed { color: var(--red); }
+/* chip 速度显示：档位名右边的"5.0秒"，跟 rt-tier 同字号同色，简洁不喧宾夺主 */
+.restock-toggle .rt-speed {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  color: var(--ink-soft); font-weight: 600; letter-spacing: 0.3px;
+  white-space: nowrap; line-height: 1.1;
+}
 .restock-toggle .rt-arrow {
   font-family: 'DM Mono', monospace; font-size: 14px;
   color: var(--ink-soft); font-weight: 700;  /* 统一为次要文字色 */
@@ -1198,6 +1232,8 @@ body { display: flex; align-items: center; justify-content: center; }
   box-shadow: 2px 2px 0 var(--ink-soft);
 }
 .restock-card.locked:active { transform: none; }
+/* 锁定的档位仍清晰显示「期望盈亏」，让玩家看到升级后的预期收益（激励） */
+.restock-card.locked .rc-ev { opacity: 1; filter: none; }
 .restock-card .rc-lock-row {
   display: flex; align-items: center; justify-content: flex-end;
   margin-top: 2px;
@@ -1289,6 +1325,34 @@ body { display: flex; align-items: center; justify-content: center; }
   color: var(--ink-soft);
   letter-spacing: 1px;
 }
+/* 弹窗标题栏的暂停按钮：紧凑尺寸 + 与关闭按钮对齐 */
+.modal-head .mf-pause-btn {
+  flex-shrink: 0;
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  padding: 5px 10px;
+  border: 1.5px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: 1.5px 1.5px 0 var(--ink);
+  transition: transform 0.1s, box-shadow 0.1s, background 0.15s, color 0.15s;
+  min-height: 30px;
+  margin-left: auto;
+  margin-right: 8px;
+}
+.modal-head .mf-pause-btn:active { transform: translate(1px, 1px); box-shadow: 0.5px 0.5px 0 var(--ink); }
+.modal-head .mf-pause-btn.paused {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+/* chip 暂停状态：加 ⏸ 前缀 + 变灰 */
+.restock-toggle.paused { opacity: 0.62; border-color: var(--ink-soft); box-shadow: 2px 2px 0 var(--ink-soft); }
+.restock-toggle.paused .rt-label::before { content: '⏸ '; opacity: 0.85; }
 .modal-title .mt-ic {
   margin-right: 6px;
   font-size: 16px;
@@ -1569,9 +1633,30 @@ body { display: flex; align-items: center; justify-content: center; }
 }
 .tier-head .th-ev.neg { color: var(--red); }
 
+.tier-colhead {
+  display: grid;
+  grid-template-columns: 18px 1fr auto auto auto auto;
+  column-gap: 6px;
+  align-items: center;
+  padding: 4px 0 3px;
+  font-family: 'Noto Serif SC', serif;
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  letter-spacing: 0.3px;
+  border-bottom: 1px solid rgba(0,0,0,0.10);
+  margin-bottom: 3px;
+}
+.tier-colhead .tch-name { text-align: left; }
+.tier-colhead span:nth-child(n+3) {
+  text-align: right;
+  min-width: 42px;
+  white-space: nowrap;
+}
+
 .item-row {
   display: grid;
-  grid-template-columns: 18px 1fr auto auto auto;
+  grid-template-columns: 18px 1fr auto auto auto auto;
   column-gap: 6px;
   row-gap: 2px;
   align-items: center;
@@ -1582,16 +1667,27 @@ body { display: flex; align-items: center; justify-content: center; }
 }
 .item-row .ir-em { font-size: 13px; line-height: 1; }
 .item-row .ir-name { text-align: left; }
-.item-row .ir-val {
+.item-row .ir-val,
+.item-row .ir-valcur {
   font-family: 'DM Mono', monospace; font-size: 9.5px;
   color: var(--ink-soft); letter-spacing: 0.3px;
   white-space: nowrap;
-  padding-right: 12px;  /* 与变化率拉开 */
+  min-width: 38px; text-align: right;
+}
+.item-row .ir-valcur { color: var(--ink); font-weight: 600; }
+.item-row .ir-basepct {
+  font-family: 'DM Mono', monospace; font-size: 9.5px;
+  color: var(--ink-soft);
+  min-width: 42px; text-align: right;
+  white-space: nowrap;
+  padding-right: 8px;
+  border-right: 1px dashed rgba(0,0,0,0.12);
 }
 .item-row .ir-pct {
   font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 600;
-  color: var(--ink); min-width: 40px; text-align: right;
-  padding-left: 12px;  /* 与变化率拉开 */
+  color: var(--ink); min-width: 42px; text-align: right;
+  padding-left: 6px;
+  white-space: nowrap;
 }
 .item-row.bad .ir-pct { color: var(--red); }
 .item-row.rare .ir-pct { color: var(--green); }
@@ -1610,13 +1706,6 @@ body { display: flex; align-items: center; justify-content: center; }
 @keyframes hidden-pulse {
   0%, 100% { transform: scale(1); opacity: 0.9; }
   50% { transform: scale(1.15); opacity: 1; }
-}
-.item-row .ir-up {
-  font-family: 'DM Mono', monospace; font-size: 8.5px;
-  font-weight: 600;
-  min-width: 40px; text-align: center;
-  display: inline-block;
-  white-space: nowrap;
 }
 
 .attr-row {

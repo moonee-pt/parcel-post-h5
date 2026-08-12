@@ -20,7 +20,7 @@ const CONFIG = {
   SAVE_KEY: 'parcel_post_save_v1',
 };
 
-/* ========== 三档快递 ==========
+/* ========== 三档盲盒 ==========
  * 设计原则：普通包小幅正期望（保证可玩），精品/豪华初始为负（需要升幸运值扭亏）
  *   普通包：基线 +1.9 金（赚钱概率 52%），满级幸运 → +4.7 金
  *   精品包：基线 -24 金，满级幸运 → -10.3 金（仍亏但大幅回升）
@@ -32,7 +32,7 @@ const TIER = {
   ordinary: {
     id: 'ordinary',
     label: 'ORDINARY',
-    cn: '普通包裹',
+    cn: '普通盲盒',
     price: 10,
     icon: '📦',
     className: '',         // 普通不加修饰
@@ -50,7 +50,7 @@ const TIER = {
   premium: {
     id: 'premium',
     label: 'PREMIUM',
-    cn: '精品快递',
+    cn: '精品盲盒',
     price: 50,
     icon: '📦',
     className: 'premium',
@@ -67,7 +67,7 @@ const TIER = {
   luxury: {
     id: 'luxury',
     label: 'LUXURY',
-    cn: '豪华包裹',
+    cn: '豪华盲盒',
     price: 200,
     icon: '📦',           // 统一所有档位 icon
     className: 'luxury',
@@ -85,7 +85,7 @@ const TIER = {
   epic: {
     id: 'epic',
     label: 'EPIC',
-    cn: '至尊包裹',
+    cn: '至尊盲盒',
     price: 1000,
     icon: '📦',
     className: 'epic',
@@ -104,7 +104,7 @@ const TIER = {
   mythic: {
     id: 'mythic',
     label: 'MYTHIC',
-    cn: '传说包裹',
+    cn: '传说盲盒',
     price: 5000,
     icon: '📦',
     className: 'mythic',
@@ -123,7 +123,7 @@ const TIER = {
 };
 
 /* ========== 幸运值系统（首页主升级）==========
- * 每档快递独立等级，玩家通过弹窗选择要升哪一档
+ * 每档盲盒独立等级，玩家通过弹窗选择要升哪一档
  * 作用：仅改概率（提升该档位稀有物权重），不改金额
  * 升级价格：每档独立曲线，高档更贵
  *   普通：base 50   × 2.5^lv
@@ -186,15 +186,15 @@ const SKILL = {
     id: 'B_restock',
     cat: 'B',
     name: '自动补货',
-    desc: '拆完自动买同档位新快递并放到台上（默认档位可切换）',
+    desc: '拆完自动买同档位新盲盒并放到台上（默认档位可切换）',
     icon: '🔄',
     oneTime: true, costBase: 200,
   },
   B_autoOpen: {
     id: 'B_autoOpen',
     cat: 'B',
-    name: '自动拆包器',
-    desc: '每 5 秒自动买 1 个普通包裹并拆开',
+    name: '自动拆包机器人',
+    desc: '每 5 秒自动买 1 个普通盲盒并拆开（后续用「机器人分拣强化」扩展档位）',
     icon: '🤖',
     oneTime: true, costBase: 350,
   },
@@ -206,7 +206,9 @@ const SKILL = {
     icon: '⏩',
     maxLevel: 10,
     requires: 'B_autoOpen',
-    costBase: 300, costMult: 3,
+    costBase: 300, costMult: 1.7,
+    // 价格：300, 510, 867, 1474, 2506, 4260, 7242, 12312, 20930, 35581
+    // 满级 = 5 - 10×0.2 = 3 秒/次
     effect: (lv) => ({ autoIntervalDiscount: lv * 0.2 }),
   },
   B_autoSell: {
@@ -218,27 +220,39 @@ const SKILL = {
     oneTime: true, costBase: 5000,
     defaultOn: true,  // 硬约束：默认开启
   },
-  B_bulkBuy: {
-    id: 'B_bulkBuy',
+  B_autoTier: {
+    id: 'B_autoTier',
     cat: 'B',
-    name: '批量采购',
-    desc: '自动拆包器可拆精品/豪华（需手动设置档位）',
-    icon: '📯',
-    oneTime: true, costBase: 10000,
+    name: '机器人分拣强化',
+    desc: '让机器人能拆更高档位的盲盒（Lv.1 精品 → Lv.4 传说）',
+    icon: '🛠️',
+    maxLevel: 4,
     requires: 'B_autoOpen',
+    costBase: 500, costMult: 4,
+    // 价格曲线（500 × 4^(lv-1)）：
+    //   Lv.1  +📦📦 精品   500
+    //   Lv.2  +🎁 豪华     2,000
+    //   Lv.3  +💎 至尊     8,000
+    //   Lv.4  +🌌 传说     32,000
+    effect: (lv) => ({ autoOpenMaxTierLv: lv }),
   },
   B_idleStorageLv: {
     id: 'B_idleStorageLv',
     cat: 'B',
     name: '扩容仓库',
-    desc: '挂机存储上限大幅提升（最高 5 级）',
+    desc: '挂机存储上限大幅提升（最高 15 级）',
     icon: '🗃️',
-    maxLevel: 5,
+    maxLevel: 15,
     requires: 'B_autoOpen',
-    costBase: 80, costMult: 2.8,
-    // 数值后面会跟其他技能一起调小
-    // Lv0=50, Lv1=200, Lv2=450, Lv3=800, Lv4=1250, Lv5=1800
-    effect: (lv) => ({ idleStorageMax: 50 * (lv + 1) * (lv + 1) }),
+    costBase: 80, costMult: 1.7,
+    // Lv.0~5：50*(lv+1)²（保留原节奏）
+    // Lv.6~15：每级再 ×1.5（撑得起后期至尊/传说档位的净赚速率）
+    //   50, 200, 450, 800, 1250, 1800, 2700, 4050, 6075, 9112, 13669, 20503, 30755, 46132, 69198, 103797
+    effect: (lv) => {
+      const base = 50 * (lv + 1) * (lv + 1);
+      const tail = lv > 5 ? Math.pow(1.5, lv - 5) : 1;
+      return { idleStorageMax: Math.floor(base * tail) };
+    },
   },
 };
 

@@ -4,32 +4,37 @@
 
 const State = {
   coin: CONFIG.START_COIN,
-  // 当前待拆的快递（购买后写入，拆完清空）
+  // 当前待拆的盲盒（购买后写入，拆完清空）
   pending: null,  // { tierId, ... }
   // 技能等级
   skillLv: {},    // { skillId: level }
   // 幸运值（每档独立等级）—— 首页主升级
-  luckyLv: { ordinary: 0, premium: 0, luxury: 0 },
+  luckyLv: { ordinary: 0, premium: 0, luxury: 0, epic: 0, mythic: 0 },
   // 广告冷却（已废弃，保留字段以兼容旧存档）
   adNextTime: 0,
-  // 自动拆包器
+  // 自动拆包机器人
   autoOpenUnlocked: false,
   autoOpenSpeedLv: 0,     // 拆包加速等级
   autoSellUnlocked: true, // 默认开启（硬约束）
   autoOpenTimer: null,
-  autoBulkUnlocked: false,
   ordNoProfitStreak: 0,   // 普通包裹连续没出"小玩具/耳机"的次数（5 次保底）
-  autoBulkTier: 'ordinary',
-  // 自动拆包器（机器人）档位
+  // 机器人分拣强化等级（0=只拆普通，1=+精品，2=+豪华，3=+至尊，4=+传说）
+  autoTierLv: 0,
+  // 旧字段保留兼容旧存档（升级后会迁移到 autoTierLv）
+  autoBulkUnlocked: false,
+  // 机器人可拆的档位（受「机器人分拣强化」等级限制）
   autoOpenTier: 'ordinary',  // 玩家点 chip 切换
+  autoOpenPaused: false,     // 玩家暂停开关（不删档，仅暂停自动拆包）
   // 自动补货
   autoRestockUnlocked: false,
   autoRestockTier: 'ordinary',  // 续包档位（默认普通，玩家手动买过的最后一个档）
-  nextPending: null,            // 预备队：自动补货的"下一个"快递，玩家拆当前时已买好
+  nextPending: null,            // 预备队：自动补货的"下一个"盲盒，玩家拆当前时已买好
   // 机器人挂机存储（拆出来先入存储，用户点领取才入 coin）
   idleStorage: 0,           // 当前暂存金币
   idleStorageMax: 50,       // 上限（基础 50；技能 B_idleStorageLv 提升）
-  lastStorageFullToast: 0,  // 上次弹"存储已满"气泡的时间（防刷屏）
+  lastStorageFullToast: 0,  // 保留兼容旧字段（已废弃）
+  lastCantAffordToast: 0,   // 保留兼容旧字段（已废弃）
+  autoOpenBlockReason: null,  // 系统原因暂停：'cantAfford' | 'storageFull' | null（玩家手动暂停时为 null）
   // 保底机制
   firstOpenCount: 0,      // 保留兼容旧存档（已废弃）
   noRareStreak: 0,        // 保留兼容旧存档（已废弃）
@@ -47,10 +52,12 @@ function save() {
       autoOpenUnlocked: State.autoOpenUnlocked,
       autoOpenSpeedLv: State.autoOpenSpeedLv,
       autoOpenTier: State.autoOpenTier,
+      autoOpenPaused: State.autoOpenPaused,
       autoSellUnlocked: State.autoSellUnlocked,
-      autoBulkUnlocked: State.autoBulkUnlocked,
+      autoTierLv: State.autoTierLv,
       autoRestockUnlocked: State.autoRestockUnlocked,
       autoRestockTier: State.autoRestockTier,
+      autoRestockPaused: State.autoRestockPaused,
       idleStorage: State.idleStorage,
       idleStorageMax: State.idleStorageMax,
       ordNoProfitStreak: State.ordNoProfitStreak,
@@ -69,18 +76,29 @@ function load() {
     if (typeof data.coin === 'number') State.coin = data.coin;
     if (data.skillLv && typeof data.skillLv === 'object') State.skillLv = data.skillLv;
     if (data.luckyLv && typeof data.luckyLv === 'object') {
-      // 合并存档：缺失档位补 0
+      // 合并存档：缺失档位补 0（含 epic / mythic，老存档只有前 3 档）
       State.luckyLv.ordinary = data.luckyLv.ordinary || 0;
-      State.luckyLv.premium = data.luckyLv.premium || 0;
-      State.luckyLv.luxury = data.luckyLv.luxury || 0;
+      State.luckyLv.premium  = data.luckyLv.premium  || 0;
+      State.luckyLv.luxury   = data.luckyLv.luxury   || 0;
+      State.luckyLv.epic     = data.luckyLv.epic     || 0;
+      State.luckyLv.mythic   = data.luckyLv.mythic   || 0;
     }
     if (typeof data.autoOpenUnlocked === 'boolean') State.autoOpenUnlocked = data.autoOpenUnlocked;
     if (typeof data.autoOpenSpeedLv === 'number') State.autoOpenSpeedLv = data.autoOpenSpeedLv;
     if (typeof data.autoOpenTier === 'string') State.autoOpenTier = data.autoOpenTier;
+    if (typeof data.autoOpenPaused === 'boolean') State.autoOpenPaused = data.autoOpenPaused;
+    else State.autoOpenPaused = false;
     if (typeof data.autoSellUnlocked === 'boolean') State.autoSellUnlocked = data.autoSellUnlocked;
-    if (typeof data.autoBulkUnlocked === 'boolean') State.autoBulkUnlocked = data.autoBulkUnlocked;
+    // 机器人分拣强化：优先读新字段；旧存档用 autoBulkUnlocked 迁移（true → Lv.4 全开）
+    if (typeof data.autoTierLv === 'number') {
+      State.autoTierLv = data.autoTierLv;
+    } else if (data.autoBulkUnlocked === true) {
+      State.autoTierLv = 4;
+    }
     if (typeof data.autoRestockUnlocked === 'boolean') State.autoRestockUnlocked = data.autoRestockUnlocked;
     if (typeof data.autoRestockTier === 'string') State.autoRestockTier = data.autoRestockTier;
+    if (typeof data.autoRestockPaused === 'boolean') State.autoRestockPaused = data.autoRestockPaused;
+    else State.autoRestockPaused = false;
     if (typeof data.idleStorage === 'number') State.idleStorage = data.idleStorage;
     if (typeof data.idleStorageMax === 'number') State.idleStorageMax = data.idleStorageMax;
     if (typeof data.ordNoProfitStreak === 'number') State.ordNoProfitStreak = data.ordNoProfitStreak;
@@ -256,10 +274,10 @@ function rollItem(tierId) {
   };
 }
 
-/* ---------- 买快递 ---------- */
+/* ---------- 买盲盒 ---------- */
 function buyParcel(tierId) {
   // 已有待拆的不能买
-  if (State.pending) return { ok: false, msg: '还有快递没拆' };
+  if (State.pending) return { ok: false, msg: '还有盲盒没拆' };
   const tier = TIER[tierId];
   if (State.coin < tier.price) return { ok: false, msg: '金币不足' };
   State.coin -= tier.price;
@@ -271,14 +289,14 @@ function buyParcel(tierId) {
 
 /* ---------- 自动补货（拆完 → 自动买同档位 → 放到台上）---------- */
 function tryAutoRestock() {
-  if (!State.autoRestockUnlocked) {
+  if (!State.autoRestockUnlocked || State.autoRestockPaused) {
     return { ok: false, reason: 'not-unlocked' };
   }
   const tier = TIER[State.autoRestockTier];
   if (State.coin < tier.price) {
     return { ok: false, reason: 'no-coin' };
   }
-  // 如果台上已有快递 → 准备到 nextPending 预备队（仅逻辑预存，无视觉）
+  // 如果台上已有盲盒 → 准备到 nextPending 预备队（仅逻辑预存，无视觉）
   if (State.pending) {
     if (State.nextPending) {
       return { ok: false, reason: 'has-next' };
@@ -366,7 +384,7 @@ function openParcel() {
   const item = rollItem(State.pending.tierId);
   // 触发 UI 动画（UI 层）
   if (typeof UI !== 'undefined' && UI.onItemRolled) UI.onItemRolled(item, State.pending.tierId);
-  // ★ 关键：物品一开始飞，就立即准备下一个快递（预备队），并立刻扣钱
+  // ★ 关键：物品一开始飞，就立即准备下一个盲盒（预备队），并立刻扣钱
   if (State.autoRestockUnlocked) {
     const r = tryAutoRestock();
     if (r && r.ok && r.where === 'next' && typeof UI !== 'undefined') {
@@ -376,11 +394,11 @@ function openParcel() {
       UI.showCoinDeduct(TIER[State.autoRestockTier].price);
     }
   }
-  // 物品飞完后清空快递盒
+  // 物品飞完后清空盲盒盒
   setTimeout(() => {
     State.pending = null;
     save();
-    // ★ 如果预备队里有快递，无缝换到主位（玩家根本看不到空台）
+    // ★ 如果预备队里有盲盒，无缝换到主位（玩家根本看不到空台）
     if (State.nextPending) {
       State.pending = State.nextPending;
       State.nextPending = null;
@@ -418,7 +436,7 @@ function upgradeSkill(id) {
     restartAutoOpen();
   }
   if (id === 'B_autoSell') State.autoSellUnlocked = true;
-  if (id === 'B_bulkBuy') State.autoBulkUnlocked = true;
+  if (id === 'B_autoTier') State.autoTierLv = getSkillLv(id);
   if (id === 'B_idleStorageLv') {
     // 扩容仓库：按等级动态计算上限（数值后面会一起调小）
     const lv = getSkillLv(id);
@@ -437,7 +455,7 @@ function upgradeSkill(id) {
   return { ok: true };
 }
 
-/* ---------- 自动拆包器 ---------- */
+/* ---------- 自动拆包机器人 ---------- */
 function getAutoInterval() {
   if (!State.autoOpenUnlocked) return 0;
   const fx = getEffects();
@@ -469,38 +487,57 @@ function stopAutoOpen() {
 
 function autoOpenTick() {
   // 机器人独立买+拆，不依赖 stage 上的 pending
-  // 档位优先：未解锁批量采购 → 只允许普通；解锁后用玩家选的档位
-  const tierId = State.autoBulkUnlocked
-    ? State.autoOpenTier
-    : 'ordinary';
+  // 档位优先：受「机器人分拣强化」等级限制 → 超出范围自动降级到最高解锁档
+  const tierOrder = ['ordinary', 'premium', 'luxury', 'epic', 'mythic'];
+  const maxIdx = State.autoTierLv || 0;  // 0-4：当前机器人能拆到的最高档位索引
+  let tierId = State.autoOpenTier;
+  const curIdx = tierOrder.indexOf(tierId);
+  if (curIdx > maxIdx) tierId = tierOrder[maxIdx];
   const tier = TIER[tierId];
   const cost = tier.price;
 
   // === 前置检查（按顺序短路）===
-  // 1) 买不起 → 静默 return（与原逻辑一致）
-  if (State.coin < cost) return;
-  // 2) 暂存金币为负数（"总金币负数也暂停"；0 起步允许）
-  if (State.idleStorage < 0) return;
-  // 3) 存储已满 → 暂停拆包 + 10s 弹一次气泡
-  if (State.idleStorage >= State.idleStorageMax) {
-    const now = Date.now();
-    if (now - State.lastStorageFullToast > 10000) {
-      State.lastStorageFullToast = now;
-      if (typeof UI !== 'undefined' && UI.spawnStorageFullToast) {
-        UI.spawnStorageFullToast();
-      }
+  // 0a) 系统原因已解除 → 自动恢复（必须在 paused 短路之前，否则手动 paused 后系统原因永远解不掉）
+  if (State.autoOpenBlockReason === 'cantAfford' && State.coin >= cost) {
+    State.autoOpenBlockReason = null;
+    State.autoOpenPaused = false;
+    if (typeof UI !== 'undefined' && UI.refreshRobotChip) UI.refreshRobotChip();
+  } else if (State.autoOpenBlockReason === 'storageFull' && State.idleStorage < State.idleStorageMax) {
+    State.autoOpenBlockReason = null;
+    State.autoOpenPaused = false;
+    if (typeof UI !== 'undefined' && UI.refreshRobotChip) UI.refreshRobotChip();
+  }
+  // 0) 玩家主动暂停 → 静默 return
+  if (State.autoOpenPaused) return;
+  // 1) 玩家金币 < cost → 暂停 + 头顶"金币不足"
+  if (State.coin < cost) {
+    if (State.autoOpenBlockReason !== 'cantAfford') {
+      State.autoOpenPaused = true;
+      State.autoOpenBlockReason = 'cantAfford';
+      if (typeof UI !== 'undefined' && UI.refreshRobotChip) UI.refreshRobotChip();
     }
     return;
   }
-  // 4) 净亏会让存储变负 → 暂停（防御性，保证 idleStorage >= 0）
-  // 预滚一次比较麻烦，直接扣 cost + roll 后限制
+  // 2) 存储已满 → 暂停拆包
+  if (State.idleStorage >= State.idleStorageMax) {
+    if (State.autoOpenBlockReason !== 'storageFull') {
+      State.autoOpenPaused = true;
+      State.autoOpenBlockReason = 'storageFull';
+      if (typeof UI !== 'undefined' && UI.refreshRobotChip) UI.refreshRobotChip();
+    }
+    return;
+  }
+  // 3) 扣 cost（从 State.coin 扣，玩家金币静默减少，不 bump）+ roll
   State.coin -= cost;
   const item = rollItem(tierId);
   const gain = item.finalValue;
   const net = gain - cost;
-  // 净亏损会让存储变负 → 回滚 coin（不退物品）
+  // 4) 净亏会让存储变负 → 回滚 cost，飘 -X 提示，保持 idleStorage >= 0
   if (State.idleStorage + net < 0) {
-    State.coin += cost;  // 退还成本
+    State.coin += cost;  // 回滚 State.coin
+    if (typeof UI !== 'undefined' && UI.onAutoOpen) {
+      UI.onAutoOpen(tierId, item, cost, gain, net);
+    }
     return;
   }
   // 正常入存储（防御性限制到 [0, max]）
@@ -517,10 +554,16 @@ function collectIdleStorage() {
   const amount = State.idleStorage;
   State.coin += amount;
   State.idleStorage = 0;
+  // 领取后：解除"存储已满"系统暂停
+  if (State.autoOpenBlockReason === 'storageFull') {
+    State.autoOpenPaused = false;
+    State.autoOpenBlockReason = null;
+  }
   save();
   if (typeof UI !== 'undefined') {
     if (UI.refreshCoin) UI.refreshCoin();
     if (UI.renderStorageBadge) UI.renderStorageBadge();
+    if (UI.refreshRobotChip) UI.refreshRobotChip();
   }
   return { ok: true, amount };
 }
@@ -589,10 +632,12 @@ function getCurrentStats() {
     effects: fx,
     autoInterval: getAutoInterval(),
     autoOpenUnlocked: State.autoOpenUnlocked,
+    autoOpenPaused: !!State.autoOpenPaused,
     autoSellUnlocked: State.autoSellUnlocked,
-    autoBulkUnlocked: State.autoBulkUnlocked,
-    autoBulkTier: State.autoBulkTier,
+    autoTierLv: State.autoTierLv || 0,
+    autoOpenMaxTier: ['ordinary', 'premium', 'luxury', 'epic', 'mythic'][State.autoTierLv || 0],
     autoRestockUnlocked: State.autoRestockUnlocked,
+    autoRestockPaused: !!State.autoRestockPaused,
     autoRestockTier: State.autoRestockTier,
   };
 }

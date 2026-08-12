@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>拆快递盲盒 · Parcel Post</title>
+  <title>暴富盲盒拆拆拆 · Parcel Post</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800;9..144,900&family=DM+Mono:wght@400;500&family=Noto+Serif+SC:wght@500;700;900&display=swap" rel="stylesheet">
@@ -21,7 +21,7 @@
         <div class="logo">
           <span class="mark">P</span>
           <span class="name">
-            <span class="cn">拆快递</span>
+            <span class="cn">暴富盲盒拆拆拆</span>
             <span class="sep">·</span>
             <span style="font-style:italic">Parcel</span>
           </span>
@@ -77,7 +77,10 @@
       <button class="restock-toggle autoopen-toggle" id="autoOpenToggle" hidden>
         <span class="rt-body">
           <span class="rt-label">自动拆包</span>
-          <span class="rt-tier" id="autoOpenTierLabel">普通</span>
+          <span class="rt-meta">
+            <span class="rt-tier" id="autoOpenTierLabel">普通盲盒</span>
+            <span class="rt-speed" id="autoOpenSpeedLabel">· 5.0秒</span>
+          </span>
         </span>
         <span class="rt-arrow">›</span>
       </button>
@@ -94,6 +97,7 @@
       <!-- PARCEL HERO -->
       <div class="parcel-area">
         <div class="robot-chip locked" id="robotChip">
+          <div class="robot-tip" id="robotTip" hidden></div>
           <div class="robot-anim" id="robotAnim">
             <img class="robot-frame f1" src="assets/images/robot_1.png" alt="" onerror="this.replaceWith(document.createTextNode('🤖'))">
             <img class="robot-frame f2" src="assets/images/robot_2.png" alt="" onerror="this.remove()">
@@ -110,7 +114,7 @@
           <!-- 空状态 -->
           <div class="parcel-empty" id="parcelEmpty">
             <div class="empty-emoji">📭</div>
-            <div class="empty-text">买一盒快递来拆</div>
+            <div class="empty-text">买一盒盲盒来拆</div>
           </div>
 
           <!-- 贴面单小游戏（嵌入 parcel 区域） -->
@@ -127,7 +131,7 @@
             <div class="sort-hint-text">拖动运单贴到盒子上</div>
           </div>
 
-          <!-- 快递盒（购买后显示，data-state: sealed|opening|opened） -->
+          <!-- 盲盒盒（购买后显示，data-state: sealed|opening|opened） -->
           <div class="parcel" id="parcel" data-tier="" data-state="sealed" style="display:none;">
             <div class="parcel-shadow"></div>
             <div class="parcel-body"></div>
@@ -135,7 +139,7 @@
             <div class="parcel-tape-h" id="parcelTapeH"></div>
             <div class="parcel-tape-v" id="parcelTapeV"></div>
             <div class="parcel-tag" id="parcelTag">EXPRESS</div>
-            <div class="parcel-stamp" id="parcelStamp">已<br>验视</div>
+            <div class="parcel-stamp" id="parcelStamp">已<br>查收</div>
             <div class="parcel-label" id="parcelLabel">TO: YOU · 2026.08</div>
           </div>
 
@@ -214,7 +218,7 @@
         <!-- 由 JS 渲染 3 张档位卡片 -->
       </div>
       <div class="modal-foot">
-        <div class="mf-hint">优先升级低档快递回本，再投高档搏稀物</div>
+        <div class="mf-hint">优先升级低档盲盒回本，再投高档搏稀物</div>
       </div>
     </div>
   </div>
@@ -241,6 +245,7 @@
     <div class="modal-card">
       <div class="modal-head">
         <div class="modal-title" id="tierPickerTitle">档位</div>
+        <button class="mf-pause-btn" id="btnTierPause" type="button">⏸ 暂停</button>
         <button class="modal-close" id="btnTierPickerClose">×</button>
       </div>
       <div class="modal-body" id="tierPickerBody">
