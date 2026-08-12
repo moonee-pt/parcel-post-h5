@@ -58,6 +58,9 @@
             <div class="ad-t2">+50 ◉</div>
           </div>
         </button>
+        <button class="ad-btn bgm-btn" id="btnBgm" title="点击切换背景音乐">
+          <div class="ad-icon">♪</div>
+        </button>
         <button class="reset-btn" id="btnReset" title="清除存档重新开始">
           <span class="rb-ic">⟳</span>
           <span class="rb-name">重置</span>
@@ -216,6 +219,23 @@
     </div>
   </div>
 
+  <!-- ========== MODAL: BGM 音乐选择器 ========== -->
+  <div class="modal-mask" id="bgmModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="modal-title">背景音乐</div>
+        <button class="modal-close" id="btnBgmModalClose">×</button>
+      </div>
+      <div class="modal-body" id="bgmModalBody">
+        <!-- 由 JS 渲染 BGM 列表 -->
+      </div>
+      <div class="modal-foot">
+        <button class="bgm-global-toggle" id="btnBgmGlobalToggle">⏸ 全部暂停</button>
+        <div class="mf-hint">点歌名切歌，点「全部」暂停/继续</div>
+      </div>
+    </div>
+  </div>
+
   <!-- ========== MODAL: 档位选择器（自动补货/自动拆包 共用同一个弹窗）========== -->
   <div class="modal-mask" id="tierPickerModal">
     <div class="modal-card">
@@ -234,11 +254,15 @@
 
 </div>
 
-<!-- 脚本顺序：配置 → 状态 → 广告 → UI → 主循环 -->
+<!-- BGM 音频元素 -->
+<audio id="bgm" preload="none" loop></audio>
+
+<!-- 脚本顺序：配置 → 状态 → 广告 → UI → 音频 → 主循环 -->
 <script src="js/config.js"></script>
 <script src="js/main.js"></script>
 <script src="js/ad.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/audio.js"></script>
 <script src="js/app.js"></script>
 
 </body>
