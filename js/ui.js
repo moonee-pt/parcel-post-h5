@@ -372,19 +372,26 @@ const UI = {
     this.refreshBuyRow();
     this.refreshSkillList();
 
-    // 创建全屏遮罩 + 中央揭示
+    // 创建全屏遮罩 + 中央揭示（复古印刷奢华风）
     const overlay = document.createElement('div');
     overlay.className = 'hidden-reveal';
     overlay.innerHTML = `
       <div class="hr-particles">
-        ${Array.from({length: 24}).map((_,i) => `<i style="--i:${i}"></i>`).join('')}
+        ${Array.from({length: 18}).map((_,i) => `<i style="--i:${i}"></i>`).join('')}
       </div>
       <div class="hr-card">
-        <div class="hr-tag">👑 隐藏款！</div>
+        <span class="hr-corner hr-corner-tl"></span>
+        <span class="hr-corner hr-corner-tr"></span>
+        <span class="hr-corner hr-corner-bl"></span>
+        <span class="hr-corner hr-corner-br"></span>
+        <div class="hr-stamp">EXCLUSIVE</div>
+        <div class="hr-eyebrow">— 隐 藏 款 —</div>
         <div class="hr-icon">${item.emoji}</div>
         <div class="hr-name">${item.name}</div>
-        <div class="hr-value">+${formatCoin(item.finalValue)} 金</div>
-        <div class="hr-tap">点击关闭</div>
+        <div class="hr-rule"></div>
+        <div class="hr-value">+${formatCoin(item.finalValue)}</div>
+        <div class="hr-coin">金 币</div>
+        <div class="hr-tap">· 点击任意处关闭 ·</div>
       </div>
     `;
     document.body.appendChild(overlay);
@@ -409,7 +416,7 @@ const UI = {
       restock:        { text: '🔄 自动补货',       color: 'var(--green)',  dur: 900 },
       'restock-fail': { text: customText || '❌ 补货失败', color: 'var(--red)', dur: 1400 },
       lucky:          { text: customText || '🍀 幸运值提升', color: 'var(--green)', dur: 1200 },
-      hidden:         { text: '👑 隐藏款！暴富！', color: '#b8860b',      dur: 2200 },
+      hidden:         { text: '✦ 隐藏款',         color: 'var(--gold-bright)', dur: 1800 },
       'storage-full': { text: customText || '存储已满，请领取', color: 'var(--ink-soft)', dur: 1400 },
       collect:        { text: customText || '📥 领取成功',     color: 'var(--green)',  dur: 1200 },
     };

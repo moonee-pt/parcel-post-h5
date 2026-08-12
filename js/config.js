@@ -20,6 +20,88 @@ const CONFIG = {
   SAVE_KEY: 'parcel_post_save_v1',
 };
 
+/* ========== 隐藏款 SVG icon（复古印刷 + 硬边墨线风格，跨设备一致）========== */
+const ICON = {
+  // 金皇冠（豪华盲盒隐藏款）
+  goldCrown: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <path d="M10 75 L15 30 L32 60 L50 20 L68 60 L85 30 L90 75 Z"
+          fill="#C9A961" stroke="#3A2817" stroke-width="3" stroke-linejoin="round"/>
+    <rect x="10" y="75" width="80" height="14" fill="#C9A961" stroke="#3A2817" stroke-width="3"/>
+    <circle cx="15" cy="28" r="3" fill="#3A2817"/>
+    <circle cx="50" cy="18" r="3" fill="#3A2817"/>
+    <circle cx="85" cy="28" r="3" fill="#3A2817"/>
+    <circle cx="50" cy="82" r="4.5" fill="#B83A2E" stroke="#3A2817" stroke-width="1.5"/>
+    <circle cx="25" cy="82" r="2.5" fill="#3A2817"/>
+    <circle cx="75" cy="82" r="2.5" fill="#3A2817"/>
+  </svg>`,
+
+  // 钻石（精品盲盒隐藏款）
+  diamond: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="25,30 75,30 90,45 10,45"
+             fill="#C9A961" stroke="#3A2817" stroke-width="3" stroke-linejoin="round"/>
+    <polygon points="25,30 50,30 50,45 10,45" fill="#D4AF37"/>
+    <polygon points="50,30 75,30 90,45 50,45" fill="#A88A4D"/>
+    <polygon points="10,45 90,45 50,90"
+             fill="#F4E8D0" stroke="#3A2817" stroke-width="3" stroke-linejoin="round"/>
+    <line x1="50" y1="45" x2="50" y2="90" stroke="#3A2817" stroke-width="2"/>
+    <line x1="30" y1="45" x2="42" y2="90" stroke="#3A2817" stroke-width="1.5"/>
+    <line x1="70" y1="45" x2="58" y2="90" stroke="#3A2817" stroke-width="1.5"/>
+    <line x1="40" y1="50" x2="45" y2="80" stroke="#F4E8D0" stroke-width="2" opacity="0.7"/>
+  </svg>`,
+
+  // 金砖（至尊盲盒隐藏款）
+  goldBar: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="15,40 85,40 92,48 22,48"
+             fill="#D4AF37" stroke="#3A2817" stroke-width="2.5" stroke-linejoin="round"/>
+    <polygon points="85,40 85,75 92,83 92,48"
+             fill="#A88A4D" stroke="#3A2817" stroke-width="2.5" stroke-linejoin="round"/>
+    <polygon points="15,40 15,75 22,83 22,48"
+             fill="#D4AF37" stroke="#3A2817" stroke-width="2.5" stroke-linejoin="round"/>
+    <rect x="15" y="40" width="70" height="35"
+          fill="#C9A961" stroke="#3A2817" stroke-width="2.5"/>
+    <polygon points="15,75 85,75 92,83 22,83"
+             fill="#A88A4D" stroke="#3A2817" stroke-width="2.5" stroke-linejoin="round"/>
+    <text x="50" y="60" text-anchor="middle" font-family="Fraunces, serif"
+          font-size="11" font-weight="900" fill="#3A2817" letter-spacing="0.5">999.9</text>
+    <text x="50" y="70" text-anchor="middle" font-family="Noto Serif SC, serif"
+          font-size="5" font-weight="700" fill="#3A2817" letter-spacing="0.5">FINE GOLD</text>
+  </svg>`,
+
+  // 金币袋（普通盲盒隐藏款）
+  moneyBag: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <path d="M28 28 Q50 18 72 28 L68 38 L32 38 Z"
+          fill="#3A2817" stroke="#3A2817" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M30 38 Q15 55 22 80 Q35 90 50 88 Q65 90 78 80 Q85 55 70 38 Z"
+          fill="#C9A961" stroke="#3A2817" stroke-width="3" stroke-linejoin="round"/>
+    <line x1="35" y1="38" x2="35" y2="48" stroke="#3A2817" stroke-width="1.5" opacity="0.5"/>
+    <line x1="50" y1="36" x2="50" y2="48" stroke="#3A2817" stroke-width="1.5" opacity="0.5"/>
+    <line x1="65" y1="38" x2="65" y2="48" stroke="#3A2817" stroke-width="1.5" opacity="0.5"/>
+    <text x="50" y="72" text-anchor="middle" font-family="Fraunces, serif"
+          font-size="32" font-weight="900" fill="#3A2817">$</text>
+    <ellipse cx="38" cy="55" rx="5" ry="10" fill="#F4E8D0" opacity="0.4"/>
+  </svg>`,
+
+  // 飞碟（传说盲盒隐藏款）
+  ufo: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <path d="M20 60 L8 95 L92 95 L80 60 Z"
+          fill="#C9A961" opacity="0.3"/>
+    <path d="M30 62 L20 92 L80 92 L70 62 Z"
+          fill="#C9A961" opacity="0.4"/>
+    <ellipse cx="50" cy="58" rx="40" ry="10"
+             fill="#F4E8D0" stroke="#3A2817" stroke-width="3"/>
+    <ellipse cx="50" cy="55" rx="40" ry="6" fill="#D4AF37"/>
+    <ellipse cx="50" cy="62" rx="40" ry="6" fill="#3A2817" opacity="0.3"/>
+    <ellipse cx="50" cy="42" rx="22" ry="14"
+             fill="#C9A961" stroke="#3A2817" stroke-width="3"/>
+    <ellipse cx="50" cy="42" rx="14" ry="9" fill="#F4E8D0" stroke="#3A2817" stroke-width="2"/>
+    <circle cx="25" cy="58" r="4" fill="#B83A2E" stroke="#3A2817" stroke-width="1.5"/>
+    <circle cx="50" cy="58" r="4" fill="#D4AF37" stroke="#3A2817" stroke-width="1.5"/>
+    <circle cx="75" cy="58" r="4" fill="#2D5F3F" stroke="#3A2817" stroke-width="1.5"/>
+    <line x1="50" y1="28" x2="50" y2="20" stroke="#3A2817" stroke-width="2"/>
+    <circle cx="50" cy="18" r="2.5" fill="#B83A2E" stroke="#3A2817" stroke-width="1.5"/>
+  </svg>`,
+};
+
 /* ========== 三档盲盒 ==========
  * 设计原则：普通包小幅正期望（保证可玩），精品/豪华初始为负（需要升幸运值扭亏）
  *   普通包：基线 +1.9 金（赚钱概率 52%），满级幸运 → +4.7 金
@@ -43,7 +125,7 @@ const TIER = {
       { name: '旧杂志',  emoji: '📰', weight: 8,  value: 8 },
       { name: '小玩具',  emoji: '🧸', weight: 35, value: 12 },
       { name: '耳机',    emoji: '🎧', weight: 17, value: 40, rare: true },
-      { name: '神秘小金条', emoji: '🎁', weight: 0.3, value: 188, hidden: true },
+      { name: '神秘金袋', emoji: ICON.moneyBag, weight: 0.3, value: 188, hidden: true },
     ],
     // 期望 11.94，利润 +1.94；赚钱概率 52%（小玩具+耳机）
   },
@@ -61,7 +143,7 @@ const TIER = {
       { name: '键盘',    emoji: '⌨️', weight: 20, value: 50 },
       { name: '手表',    emoji: '⌚', weight: 7,  value: 100 },
       { name: '手机',    emoji: '📱', weight: 3,  value: 150, rare: true },
-      { name: '钻石耳钉', emoji: '💎', weight: 0.2, value: 888, hidden: true },
+      { name: '钻石耳钉', emoji: ICON.diamond, weight: 0.2, value: 888, hidden: true },
     ],
   },
   luxury: {
@@ -78,7 +160,7 @@ const TIER = {
       { name: '平板',    emoji: '💻', weight: 18, value: 120 },
       { name: '金饰',    emoji: '💍', weight: 9,  value: 300 },
       { name: '笔记本',  emoji: '🖥️', weight: 3,  value: 1200, rare: true },
-      { name: '黄金键盘', emoji: '👑', weight: 0.1, value: 8888, hidden: true },
+      { name: '金皇冠', emoji: ICON.goldCrown, weight: 0.1, value: 8888, hidden: true },
     ],
   },
   // ===== 新增两个档位（4 / 5）=====
@@ -96,7 +178,7 @@ const TIER = {
       { name: '名表',    emoji: '⌚', weight: 18, value: 600 },
       { name: '显卡',    emoji: '🎮', weight: 12, value: 1500 },
       { name: '名车钥匙', emoji: '🚗', weight: 4,  value: 4000, rare: true },
-      { name: '金砖',    emoji: '🟨', weight: 1,  value: 20000, hidden: true },
+      { name: '金砖',    emoji: ICON.goldBar, weight: 1,  value: 20000, hidden: true },
     ],
     // 期望：200*0.20 + 600*0.18 + 1500*0.12 + 4000*0.04 = 40+108+180+160 = 488
     // 概率：赚钱 54%（日用品+名表+显卡+名车）; 期望盈亏 -512（成本 1000）；略亏但有隐藏款
@@ -116,7 +198,7 @@ const TIER = {
       { name: '显卡',    emoji: '🎮', weight: 10, value: 6000 },
       { name: '名车钥匙', emoji: '🚗', weight: 6,  value: 15000, rare: true },
       { name: '房产证',  emoji: '🏠', weight: 1.5, value: 80000, rare: true },
-      { name: '宇宙飞船票', emoji: '🛸', weight: 0.5, value: 200000, hidden: true },
+      { name: '宇宙飞船票', emoji: ICON.ufo, weight: 0.5, value: 200000, hidden: true },
     ],
     // 概率：赚钱 50%；期望盈亏 -1000（成本 5000）；隐藏款 200000 = 0.5% 概率
   },
@@ -125,37 +207,34 @@ const TIER = {
 /* ========== 幸运值系统（首页主升级）==========
  * 每档盲盒独立等级，玩家通过弹窗选择要升哪一档
  * 作用：仅改概率（提升该档位稀有物权重），不改金额
- * 升级价格：每档独立曲线，高档更贵
- *   普通：base 50   × 2.5^lv
- *   精品：base 200  × 3.0^lv
- *   豪华：base 1000 × 4.0^lv
- *   至尊：base 5000 × 4.5^lv
- *   传说：base 20000× 5.0^lv
- * 满级（Lv.10）时：
- *   普通包稀有权重 4 → 29  → 期望从 -5 扭亏到 +2（主战场稳定赚钱）
- *   精品包稀有权重 3 → 23  → 期望从 -24 回升到 -3（接近回本仍小亏）
- *   豪华包稀有权重 3 → 7   → 期望从 -100 回升到 -50（高端永远是赌）
+ * 升级价格：每档独立曲线，统一 mult=1.7
+ *   普通：base 30    × 1.6^lv  → 30/48/77/123/197
+ *   精品：base 100   × 1.7^lv  → 100/170/289/491/836
+ *   豪华：base 500   × 1.7^lv  → 500/850/1445/2457/4176
+ *   至尊：base 1500  × 1.7^lv  → 1500/2550/4335/7370/12528
+ *   传说：base 6000  × 1.7^lv  → 6000/10200/17340/29478/50113
+ * 设计目标：4 档（精品/豪华/至尊/传说）曲线一致——
+ *   Lv.0 略亏或持平，Lv.1 接近 50%（临界），Lv.2 越过 60% 正式转正，Lv.5 约 75~80%
+ *   普通包独立：起步 52%（保本），满级 91%
+ *   参考《刮个爽》：幸运值是长期收益核心，缓步推高
  * ========================== */
 const LUCKY = {
   MAX_LEVEL: 5,
-  // 玩家流程：先亏后赚，每升一级都能感觉到明显变化
-  // 价格曲线：每级 1.5x 平滑递增，每档 Lv.5 ≈ 下一档 Lv.1（连续衔接）
-  // 普通包：1 天可满级，精品包：1 周，豪华包：2-3 周
   COST: {
-    ordinary: { base: 30,   mult: 1.5 },  // 1:30, 2:45, 3:68, 4:102, 5:153
-    premium:  { base: 150,  mult: 1.5 },  // 1:150, 2:225, ...
-    luxury:   { base: 750,  mult: 1.5 },  // 1:750, 2:1125, ...
-    epic:     { base: 3500, mult: 1.5 },  // 1:3500, 2:5250, ...
-    mythic:   { base: 15000,mult: 1.5 },  // 1:15000, 2:22500, ...
+    ordinary: { base: 30,   mult: 1.6 },
+    premium:  { base: 100,  mult: 1.7 },
+    luxury:   { base: 500,  mult: 1.7 },
+    epic:     { base: 1500, mult: 1.7 },
+    mythic:   { base: 6000, mult: 1.7 },
   },
   // 每级效果：所有赚钱物品（value > price）获得 +EFFECT * 100 weight
-  // 设计目标：Lv.0 50% 赚钱，Lv.5 约 85% 赚钱（每档均先亏后赚，参考 刮个爽）
+  // 4 档 EFFECT 接近：让升级体验一致（Lv.0 → Lv.5 约 30~35% → 75~80%）
   EFFECT_PER_LEVEL: {
-    ordinary: 0.25,     // 普通包 52% → 86%
-    premium:  0.50,     // 精品包 10% → 85%
-    luxury:   0.50,     // 豪华包 12% → 85%
-    epic:     0.50,
-    mythic:   0.50,
+    ordinary: 0.30,    // 普通包：52% → 91%（独立曲线，缓步）
+    premium:  0.22,    // 精品包：10% → 79%（Lv.1 46% 略亏，Lv.2 61% 转正）
+    luxury:   0.10,    // 豪华包：30% → 77%（Lv.1 50% 持平，Lv.2 61% 转正）
+    epic:     0.085,   // 至尊包：35% → 76%（Lv.1 52% 转正，Lv.2 61% 稳赚）
+    mythic:   0.07,    // 传说包：32% → 75%（Lv.1 50% 持平，Lv.2 60% 转正）
   },
   // 隐藏款单独加成：每档统一 4%/级，满级 5%+（参考 刮个爽 的隐藏款思路）
   // Lv.5 普通包隐藏概率 ≈ 5.5%（让玩家能体验到）
@@ -174,10 +253,12 @@ const SKILL = {
     id: 'A_value',
     cat: 'A',
     name: '价值加成',
-    desc: '物品最终售价 +5% / 级',
+    desc: '物品最终售价 +5% / 级（最高 10 级）',
     icon: '💰',
-    maxLevel: 20,
-    costBase: 50, costMult: 3,
+    maxLevel: 10,
+    costBase: 50, costMult: 1.6,
+    // 价格：50/80/128/205/328/525/840/1344/2150/3440 → 累计 9,096
+    // 满级物品价值 +50%
     effect: (lv) => ({ valueMult: 1 + lv * 0.05 }),
   },
 
@@ -202,14 +283,14 @@ const SKILL = {
     id: 'B_openSpeed',
     cat: 'B',
     name: '拆包加速',
-    desc: '自动拆包间隔 -0.2 秒 / 级（最高 10 级）',
+    desc: '自动拆包间隔 -0.6 秒 / 级（最高 5 级，5 秒 → 2 秒）',
     icon: '⏩',
-    maxLevel: 10,
+    maxLevel: 5,
     requires: 'B_autoOpen',
-    costBase: 300, costMult: 1.7,
-    // 价格：300, 510, 867, 1474, 2506, 4260, 7242, 12312, 20930, 35581
-    // 满级 = 5 - 10×0.2 = 3 秒/次
-    effect: (lv) => ({ autoIntervalDiscount: lv * 0.2 }),
+    costBase: 100, costMult: 1.7,
+    // 价格：100/170/289/491/836 → 累计 1,886
+    // 满级 = 5 - 5×0.6 = 2 秒/次
+    effect: (lv) => ({ autoIntervalDiscount: lv * 0.6 }),
   },
   B_autoSell: {
     id: 'B_autoSell',

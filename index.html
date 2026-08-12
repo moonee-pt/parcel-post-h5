@@ -42,13 +42,33 @@
       </div>
     </div>
 
-    <!-- AD STRIP：左幸运值入口，右广告 + 重置 -->
+    <!-- AD STRIP：左侧幸运值入口 + 自动补货 chip；右侧 4 个工具按钮竖排 -->
     <div class="ad-strip">
       <div class="ad-strip-left">
         <button class="lucky-chip" id="btnLucky">
           <span class="lc-name">幸运值</span>
           <span class="lc-arrow">›</span>
         </button>
+        <!-- 自动拆包 + 自动补货 chip（移入 ad-strip-left，紧贴幸运值下方）-->
+        <div class="auto-chips">
+          <button class="restock-toggle autoopen-toggle" id="autoOpenToggle" hidden>
+            <span class="rt-body">
+              <span class="rt-label">自动拆包</span>
+              <span class="rt-meta">
+                <span class="rt-tier" id="autoOpenTierLabel">普通盲盒</span>
+                <span class="rt-speed" id="autoOpenSpeedLabel">· 5.0秒</span>
+              </span>
+            </span>
+            <span class="rt-arrow">›</span>
+          </button>
+          <button class="restock-toggle" id="restockToggle" hidden>
+            <span class="rt-body">
+              <span class="rt-label">自动补货</span>
+              <span class="rt-tier" id="restockTierLabel">普通</span>
+            </span>
+            <span class="rt-arrow">›</span>
+          </button>
+        </div>
       </div>
       <div class="ad-strip-right">
         <button class="ad-btn" id="btnWatchAd">
@@ -65,32 +85,11 @@
           <span class="rb-ic">⟳</span>
           <span class="rb-name">重置</span>
         </button>
-        <button class="reset-btn" id="btnTestHidden" title="测试开出隐藏款动画" style="margin-top:6px">
+        <button class="reset-btn" id="btnTestHidden" title="测试开出隐藏款动画">
           <span class="rb-ic">👑</span>
           <span class="rb-name">测隐藏</span>
         </button>
       </div>
-    </div>
-
-    <!-- 自动拆包 + 自动补货 chip（幸运值下方，解锁后才显示）-->
-    <div class="auto-chips">
-      <button class="restock-toggle autoopen-toggle" id="autoOpenToggle" hidden>
-        <span class="rt-body">
-          <span class="rt-label">自动拆包</span>
-          <span class="rt-meta">
-            <span class="rt-tier" id="autoOpenTierLabel">普通盲盒</span>
-            <span class="rt-speed" id="autoOpenSpeedLabel">· 5.0秒</span>
-          </span>
-        </span>
-        <span class="rt-arrow">›</span>
-      </button>
-      <button class="restock-toggle" id="restockToggle" hidden>
-        <span class="rt-body">
-          <span class="rt-label">自动补货</span>
-          <span class="rt-tier" id="restockTierLabel">普通</span>
-        </span>
-        <span class="rt-arrow">›</span>
-      </button>
     </div>
 
     <div class="home-body">
