@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>拆快递盲盒 · Parcel Post</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800;9..144,900&family=DM+Mono:wght@400;500&family=Noto+Serif+SC:wght@500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="phone">
+
+  <!-- ========== PAGE 1: HOME ========== -->
+  <div class="page active" id="page-home">
+
+    <div class="topbar">
+      <div class="tb-left">
+        <div class="logo">
+          <span class="mark">P</span>
+          <span class="name">
+            <span class="cn">拆快递</span>
+            <span class="sep">·</span>
+            <span style="font-style:italic">Parcel</span>
+          </span>
+        </div>
+      </div>
+      <button class="tb-mid top-tool-btn" id="btnOpenSkill">
+        <span class="ic">✦</span><span>升级</span>
+      </button>
+      <div class="tb-right">
+        <div class="coin-pill">
+          <span class="c">◉</span>
+          <span class="num" id="coinDisplay">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- AD STRIP：左幸运值入口，右广告 + 重置 -->
+    <div class="ad-strip">
+      <div class="ad-strip-left">
+        <button class="lucky-chip" id="btnLucky">
+          <span class="lc-ic">🍀</span>
+          <span class="lc-name">幸运值</span>
+          <span class="lc-arrow">›</span>
+        </button>
+      </div>
+      <div class="ad-strip-right">
+        <button class="ad-btn" id="btnWatchAd">
+          <div class="ad-icon">▶</div>
+          <div class="ad-body">
+            <div class="ad-t1">看视频</div>
+            <div class="ad-t2">+50 ◉</div>
+          </div>
+        </button>
+        <button class="reset-btn" id="btnReset" title="清除存档重新开始">
+          <span class="rb-ic">⟳</span>
+          <span class="rb-name">重置</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="home-body">
+      <!-- PARCEL HERO -->
+      <div class="parcel-area">
+        <div class="robot-chip locked" id="robotChip">
+          <img class="robot-icon" src="assets/images/robot.png" alt="robot" onerror="this.style.opacity=0.4;this.style.filter='grayscale(0.85)'">
+          <div class="robot-text">未解锁</div>
+        </div>
+
+        <div class="parcel-stage" id="parcelStage">
+          <!-- 空状态 -->
+          <div class="parcel-empty" id="parcelEmpty">
+            <div class="empty-emoji">📭</div>
+            <div class="empty-text">买一盒快递来拆</div>
+          </div>
+
+          <!-- 贴面单小游戏（嵌入 parcel 区域） -->
+          <div class="sort-inline" id="sortInline" style="display:none;">
+            <div class="sort-box" id="sortBox">
+              <div class="sort-box-flap"></div>
+              <div class="sort-box-body"></div>
+            </div>
+            <div class="sort-tape" id="sortTape">
+              <div class="st-barcode"></div>
+              <div class="st-addr">收件人：***</div>
+            </div>
+            <div class="sort-feedback" id="sortFeedback"></div>
+            <div class="sort-hint-text">拖动运单贴到盒子上</div>
+          </div>
+
+          <!-- 快递盒（购买后显示，data-state: sealed|opening|opened） -->
+          <div class="parcel" id="parcel" data-tier="" data-state="sealed" style="display:none;">
+            <div class="parcel-shadow"></div>
+            <div class="parcel-body"></div>
+            <div class="parcel-lid" id="parcelLid"></div>
+            <div class="parcel-tape-h" id="parcelTapeH"></div>
+            <div class="parcel-tape-v" id="parcelTapeV"></div>
+            <div class="parcel-tag" id="parcelTag">EXPRESS</div>
+            <div class="parcel-stamp" id="parcelStamp">已<br>验视</div>
+            <div class="parcel-label" id="parcelLabel">TO: YOU · 2026.08</div>
+          </div>
+
+          <!-- 浮层：物品飞出 + 数字跳字 -->
+          <div class="parcel-fx" id="parcelFx"></div>
+        </div>
+      </div>
+
+      <div class="swipe-hint" id="swipeHint">
+        <span class="arrow">←</span> SLIDE TO OPEN <span class="arrow">→</span>
+      </div>
+
+      <!-- 自动补货档位切换 chip（仅在解锁后显示）-->
+      <button class="restock-toggle" id="restockToggle" hidden>
+        <span class="rt-icon">🔄</span>
+        <span class="rt-body">
+          <span class="rt-label">下次续包</span>
+          <span class="rt-tier" id="restockTierLabel">📦 普通</span>
+        </span>
+        <span class="rt-arrow">‹</span>
+      </button>
+
+      <!-- STATS 入口 -->
+      <button class="stats-btn" id="btnStats">
+        <span class="st-body">
+          <span class="st-t1">属性</span>
+          <span class="st-t2" id="statsPreview">价值×1.0</span>
+        </span>
+        <span class="st-arrow">›</span>
+      </button>
+
+      <!-- BUY ROW -->
+      <div class="buy-row" id="buyRow">
+        <!-- 3 个 buy-card 由 JS 渲染 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== PAGE 2: SKILL TREE ========== -->
+  <div class="page" id="page-skill">
+    <div class="skill-topbar">
+      <button class="back-btn" id="btnBackHome">←</button>
+      <div class="skill-title">升级</div>
+      <div class="coin-pill-wrap">
+        <div class="coin-pill">
+          <span class="c">◉</span>
+          <span class="num" id="coinDisplay2">0</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="skill-body">
+      <div class="skill-tab-bar" id="skillTabBar">
+        <!-- tab 由 JS 渲染 -->
+      </div>
+      <div id="skillList">
+        <!-- 技能卡片由 JS 渲染 -->
+      </div>
+      <div class="footer-note">─── END OF LIST ───</div>
+    </div>
+  </div>
+
+  <!-- ========== MODAL: 当前属性面板 ========== -->
+  <div class="modal-mask" id="statsModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="modal-title">属性</div>
+        <button class="modal-close" id="btnStatsClose">×</button>
+      </div>
+      <div class="modal-body" id="statsModalBody">
+        <!-- 由 JS 渲染 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== MODAL: 幸运值升级弹窗 ========== -->
+  <div class="modal-mask" id="luckyModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="modal-title"><span class="mt-ic">🍀</span>幸运值</div>
+        <button class="modal-close" id="btnLuckyClose">×</button>
+      </div>
+      <div class="modal-body" id="luckyModalBody">
+        <!-- 由 JS 渲染 3 张档位卡片 -->
+      </div>
+      <div class="modal-foot">
+        <div class="mf-hint">优先升级低档快递回本，再投高档搏稀物</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 脚本顺序：配置 → 状态 → 广告 → UI → 主循环 -->
+<script src="js/config.js"></script>
+<script src="js/main.js"></script>
+<script src="js/ad.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>

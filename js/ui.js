@@ -1,0 +1,1029 @@
+/* ============================================================
+ * ui.js — UI 渲染 + 事件绑定
+ * ============================================================ */
+
+const UI = {
+  // 当前技能 tab
+  currentTab: 'A',
+
+  /* ========== 初始化 ========== */
+  init() {
+    this.renderBuyRow();
+    this.renderSkillTabs();
+    this.renderSkillList();
+    this.bindEvents();
+    this.refreshCoin();
+    this.refreshStatsPreview();
+    this.refreshLuckyPreview();
+    this.refreshRobotChip();
+    this.refreshRestockToggle();
+    this.setupDragScroll(document.getElementById('buyRow'));
+  },
+
+  /* ========== 鼠标 + 触摸横向滚动 ==========
+   * 浏览器原生只支持触摸平移，鼠标拖动 + 触屏 swipe 都走 JS 兜底
+   * 桌面端：mousedown / mousemove
+   * 移动端：touchstart / touchmove（防止与卡片 click 冲突）
+   */
+  setupDragScroll(row) {
+    if (!row || row._dragBound) return;
+    row._dragBound = true;
+    let dragging = false;
+    let startX = 0;
+    let scrollStart = 0;
+    let moved = false;
+    let pointerId = null;
+
+    const start = (clientX) => {
+      dragging = true;
+      moved = false;
+      startX = clientX;
+      scrollStart = row.scrollLeft;
+      row.classList.add('dragging');
+    };
+    const move = (clientX) => {
+      if (!dragging) return;
+      const dx = clientX - startX;
+      if (Math.abs(dx) > 4) moved = true;
+      row.scrollLeft = scrollStart - dx;
+    };
+    const end = () => {
+      dragging = false;
+      pointerId = null;
+      row.classList.remove('dragging');
+    };
+
+    // 鼠标（桌面）
+    row.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      start(e.clientX);
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging || pointerId !== null) return;
+      e.preventDefault();
+      move(e.clientX);
+    });
+    window.addEventListener('mouseup', end);
+
+    // 触摸（移动）
+    row.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      start(e.touches[0].clientX);
+    }, { passive: true });
+    row.addEventListener('touchmove', (e) => {
+      if (!dragging) return;
+      move(e.touches[0].clientX);
+    }, { passive: true });
+    row.addEventListener('touchend', end);
+    row.addEventListener('touchcancel', end);
+
+    // 拖动后抑制卡片点击（capture 阶段先于卡片 click 触发）
+    row.addEventListener('click', (e) => {
+      if (moved) {
+        e.preventDefault();
+        e.stopPropagation();
+        moved = false;
+      }
+    }, true);
+  },
+
+  /* ========== 购买按钮 ========== */
+  renderBuyRow() {
+    const row = document.getElementById('buyRow');
+    if (!row) return;
+    row.innerHTML = '';
+
+    // 贴面单卡片（最左边）
+    const sortCard = document.createElement('div');
+    sortCard.className = 'buy-card sort-card';
+    sortCard.innerHTML = `
+      <span class="icon">📮</span>
+      <div class="tier">SORTING</div>
+      <div class="price">贴面单</div>
+      <div class="risk">赚金币</div>
+    `;
+    sortCard.addEventListener('click', () => this.openSortingGame());
+    row.appendChild(sortCard);
+
+    // 快递档位卡片
+    for (const id in TIER) {
+      const t = TIER[id];
+      const card = document.createElement('div');
+      card.className = 'buy-card' + (t.className ? ' ' + t.className : '');
+      card.dataset.tier = id;
+      card.innerHTML = `
+        <span class="icon">${t.icon}</span>
+        <div class="tier">${t.label}</div>
+        <div class="price"><span class="c">◉</span>${t.price}</div>
+        <div class="risk">${t.riskLabel}</div>
+        <div class="restock-tag">自动补货中</div>
+        <div class="restock-badge">🔄</div>
+      `;
+      card.addEventListener('click', () => this.handleBuy(id));
+      row.appendChild(card);
+    }
+    this.refreshBuyRow();
+  },
+
+  refreshBuyRow() {
+    document.querySelectorAll('.buy-card').forEach(card => {
+      // 贴面单卡片跳过
+      if (card.classList.contains('sort-card')) return;
+      const tier = TIER[card.dataset.tier];
+      const canAfford = State.coin >= tier.price;
+      const hasPending = !!State.pending;
+      // 买不起：有待拆 = 完全不可点；买不起 = 仍可点（提示"金币不足"）
+      card.disabled = hasPending;
+      card.classList.toggle('cant-afford', !canAfford);
+      // 自动补货档位高亮
+      const isRestockTier = State.autoRestockUnlocked && State.autoRestockTier === card.dataset.tier;
+      card.classList.toggle('restock-on', isRestockTier);
+    });
+  },
+
+  handleBuy(tierId) {
+    if (State.pending) {
+      // 还有没拆的，提示一下
+      this.spawnPityTag('restock-fail', '还有快递没拆');
+      return;
+    }
+    const result = buyParcel(tierId);
+    if (!result.ok) {
+      // 买不起：明确提示差额
+      if (result.msg === '金币不足') {
+        const tier = TIER[tierId];
+        const need = Math.ceil(tier.price - State.coin);
+        this.spawnPityTag('restock-fail', `金币不足，还差 ${need} 金`);
+      } else {
+        this.spawnPityTag('restock-fail', result.msg);
+      }
+      return;
+    }
+    // 渲染快递盒
+    this.showParcel(tierId);
+    this.refreshCoin();
+    this.refreshBuyRow();
+  },
+
+  /* ========== 快递盒 ========== */
+  showParcel(tierId) {
+    const tier = TIER[tierId];
+    const empty = document.getElementById('parcelEmpty');
+    const parcel = document.getElementById('parcel');
+    if (empty) empty.style.display = 'none';
+    if (parcel) {
+      parcel.style.display = 'block';
+      parcel.dataset.tier = tierId;
+      parcel.dataset.state = 'sealed';
+      // 重置封带
+      const tapeH = document.getElementById('parcelTapeH');
+      const tapeV = document.getElementById('parcelTapeV');
+      if (tapeH) tapeH.style.clipPath = 'inset(0 0 0 0)';
+      if (tapeV) tapeV.style.clipPath = 'inset(0 0 0 0)';
+      // 提示文字
+      const hint = document.getElementById('swipeHint');
+      if (hint) hint.classList.remove('hide');
+    }
+  },
+
+  onParcelCleared() {
+    const empty = document.getElementById('parcelEmpty');
+    const parcel = document.getElementById('parcel');
+    if (parcel) parcel.style.display = 'none';
+    if (empty) empty.style.display = 'flex';
+    this.refreshBuyRow();
+  },
+
+  /* ========== 拆包 FX ========== */
+  onItemRolled(item, tierId) {
+    // 隐藏提示
+    const hint = document.getElementById('swipeHint');
+    if (hint) hint.classList.add('hide');
+
+    // 保底提示（先于 FX 触发，让玩家注意力在中间）
+    if (item.isFirstProtect) {
+      setTimeout(() => this.spawnPityTag('first'), 250);
+    } else if (item.isRarePity) {
+      setTimeout(() => this.spawnPityTag('rarePity'), 250);
+    } else if (item.noRareStreakNext >= 3) {
+      setTimeout(() => this.spawnPityTag('rareClose'), 250);
+    }
+
+    // 隐藏款暴富特效
+    if (item.isHidden) {
+      setTimeout(() => this.spawnPityTag('hidden'), 250);
+    }
+
+    // 触发 fx
+    this.spawnFx(item, tierId);
+    // 自动售卖站开启 → 直接入账
+    if (State.autoSellUnlocked) {
+      setTimeout(() => {
+        State.coin += item.finalValue;
+        save();
+        this.refreshCoin();
+        this.refreshBuyRow();
+        this.refreshSkillList(); // 钱变了，升级按钮状态要更新
+        // 自动补货触发由 main.js 在 parcel cleared 后统一处理
+      }, 600);
+    } else {
+      // 手动售卖：显示"出售"按钮（这里 MVP 先自动入账，TODO: 改成手动）
+      State.coin += item.finalValue;
+      save();
+      this.refreshCoin();
+    }
+  },
+
+  spawnFx(item, tierId) {
+    const fx = document.getElementById('parcelFx');
+    if (!fx) return;
+    // 1. glow burst
+    const glow = document.createElement('div');
+    glow.className = 'fx-glow';
+    fx.appendChild(glow);
+    requestAnimationFrame(() => glow.classList.add('go'));
+    setTimeout(() => glow.remove(), 700);
+    // 2. item fly
+    const itemEl = document.createElement('div');
+    itemEl.className = 'fx-item';
+    itemEl.textContent = item.emoji;
+    fx.appendChild(itemEl);
+    requestAnimationFrame(() => itemEl.classList.add('go'));
+    setTimeout(() => itemEl.remove(), CONFIG.ITEM_FX_DURATION + 100);
+    // 3. 数字跳字
+    const numEl = document.createElement('div');
+    numEl.className = 'fx-num' + (item.finalValue < 0 ? ' minus' : '');
+    const sign = item.finalValue >= 0 ? '+' : '';
+    numEl.textContent = `${sign}${item.finalValue} ◉`;
+    fx.appendChild(numEl);
+    requestAnimationFrame(() => numEl.classList.add('go'));
+    setTimeout(() => numEl.remove(), CONFIG.NUM_FX_DURATION + 100);
+    // 4. 暴击追加 sparkles
+    if (item.isCrit) {
+      for (let i = 0; i < 6; i++) {
+        const sp = document.createElement('div');
+        sp.className = 'fx-sparkle';
+        const angle = (i / 6) * Math.PI * 2;
+        const dist = 60 + Math.random() * 30;
+        sp.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+        sp.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+        sp.style.background = i % 2 === 0 ? 'var(--gold)' : 'var(--gold-bright)';
+        fx.appendChild(sp);
+        requestAnimationFrame(() => sp.classList.add('go'));
+        setTimeout(() => sp.remove(), 900);
+      }
+    }
+  },
+
+  /* ========== 自动拆包器 tick ========== */
+  onAutoOpen(tierId, item, gain) {
+    this.refreshCoin();
+    this.refreshBuyRow();
+    this.refreshSkillList();
+    // 在 parcel 区域上方飘一行小字提示
+    this.spawnAutoFloat(tierId, item, gain);
+  },
+
+  spawnAutoFloat(tierId, item, gain) {
+    // 在机器人 chip 上方飘一行小字提示
+    const chip = document.getElementById('robotChip');
+    if (!chip) return;
+    const numEl = document.createElement('div');
+    numEl.className = 'auto-float-num';
+    const sign = gain >= 0 ? '+' : '';
+    numEl.textContent = `${TIER[tierId].cn} ${sign}${gain} ◉`;
+    chip.appendChild(numEl);
+    requestAnimationFrame(() => numEl.classList.add('go'));
+    setTimeout(() => numEl.remove(), 1400);
+  },
+
+  /* ========== 保底提示横幅（首抽保护 / 运气象 / 自动补货 / 幸运值升级）========== */
+  spawnPityTag(kind, customText) {
+    // kind: 'first' | 'rarePity' | 'rareClose' | 'restock' | 'restock-fail' | 'lucky' | 'hidden'
+    const map = {
+      first:        { text: '🛡️ 首抽保护',     color: 'var(--green)',  dur: 1100 },
+      rarePity:     { text: '✨ 必中！',         color: 'var(--red)',    dur: 1400 },
+      rareClose:    { text: '运气象蓄力中…',   color: 'var(--ink-soft)', dur: 900 },
+      restock:      { text: '🔄 自动补货',       color: 'var(--green)',  dur: 900 },
+      'restock-fail': { text: customText || '❌ 补货失败', color: 'var(--red)', dur: 1400 },
+      lucky:        { text: customText || '🍀 幸运值提升', color: 'var(--green)', dur: 1200 },
+      hidden:       { text: '👑 隐藏款！暴富！', color: '#b8860b',      dur: 2200 },
+    };
+    const cfg = map[kind] || map.rareClose;
+    const el = document.createElement('div');
+    el.className = 'pity-tag';
+    el.style.color = cfg.color;
+    el.style.borderColor = cfg.color;
+    el.style.boxShadow = `2px 2px 0 ${cfg.color}`;
+    el.textContent = cfg.text;
+    document.body.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('go'));
+    setTimeout(() => el.remove(), cfg.dur + 400);
+  },
+
+  /* ========== 金币显示 ========== */
+  refreshCoin() {
+    const els = [
+      document.getElementById('coinDisplay'),
+      document.getElementById('coinDisplay2'),
+    ].filter(Boolean);
+    const txt = formatCoin(State.coin);
+    els.forEach(el => {
+      if (el.textContent !== txt) {
+        el.textContent = txt;
+        el.classList.add('bump');
+        setTimeout(() => el.classList.remove('bump'), 130);
+      }
+    });
+  },
+
+  /* ========== 技能页 ========== */
+  renderSkillTabs() {
+    const bar = document.getElementById('skillTabBar');
+    if (!bar) return;
+    bar.innerHTML = '';
+    SKILL_TABS.forEach(t => {
+      const btn = document.createElement('button');
+      btn.className = 'skill-tab' + (t.id === this.currentTab ? ' active' : '');
+      btn.textContent = t.label;
+      btn.addEventListener('click', () => {
+        this.currentTab = t.id;
+        this.renderSkillTabs();
+        this.renderSkillList();
+      });
+      bar.appendChild(btn);
+    });
+  },
+
+  renderSkillList() {
+    const list = document.getElementById('skillList');
+    if (!list) return;
+    list.innerHTML = '';
+    for (const id in SKILL) {
+      const def = SKILL[id];
+      if (def.cat !== this.currentTab) continue;
+      list.appendChild(this.buildSkillCard(id, def));
+    }
+  },
+
+  buildSkillCard(id, def) {
+    const lv = getSkillLv(id);
+    const maxLv = def.maxLevel || 1;
+    const progress = def.oneTime ? (lv > 0 ? 100 : 0) : (lv / maxLv) * 100;
+    const isMax = isMaxLevel(id);
+    const locked = def.requires && !isSkillUnlocked(def.requires);
+    const cost = isMax ? 0 : getSkillCost(id);
+    const cantAfford = !isMax && State.coin < cost;
+
+    // 状态
+    let statusText;
+    if (def.oneTime) {
+      statusText = lv > 0 ? '已激活' : '未解锁';
+    } else {
+      statusText = isMax ? `${maxLv} / ${maxLv}` : `${lv} / ${maxLv}`;
+    }
+    if (locked) statusText = '需先解锁';
+
+    // 按钮
+    let btnHtml;
+    if (locked) {
+      btnHtml = `<button class="up-btn" disabled><span class="c">🔒</span> 前置 <span class="lb">LOCK</span></button>`;
+    } else if (isMax) {
+      btnHtml = `<button class="up-btn" style="background:var(--gold);color:var(--ink);border-color:var(--gold);" disabled>
+        <span class="c" style="color:var(--ink);">✓</span> ${def.oneTime ? '已激活' : '满级'} <span class="lb" style="color:var(--ink);">${def.oneTime ? 'AUTO' : 'MAX'}</span>
+      </button>`;
+    } else {
+      btnHtml = `<button class="up-btn" data-skill="${id}">
+        <span class="c">◉</span> ${formatCoin(cost)} <span class="lb">${def.oneTime ? '解锁' : 'UP'}</span>
+      </button>`;
+    }
+
+    const card = document.createElement('div');
+    card.className = 'skill-card'
+      + (locked ? ' locked' : '')
+      + (isMax ? ' maxed' : '')
+      + (cantAfford ? ' cant-afford' : '');
+    card.innerHTML = `
+      <div class="skill-ic">${def.icon}</div>
+      <div class="skill-info">
+        <div class="name">${def.name}</div>
+        <div class="desc">${def.desc}</div>
+        <div class="lv-bar">
+          <span class="lv-num">${statusText}</span>
+          <div class="lv-track"><div class="lv-fill" style="width:${progress}%"></div></div>
+        </div>
+      </div>
+      ${btnHtml}
+    `;
+    if (!locked && !isMax) {
+      const btn = card.querySelector('.up-btn');
+      if (btn) btn.addEventListener('click', () => this.handleUpgrade(id));
+    }
+    return card;
+  },
+
+  refreshSkillList() {
+    // 只刷新"买不起"的状态，避免重建 DOM 丢失滚动
+    for (const id in SKILL) {
+      const def = SKILL[id];
+      if (def.cat !== this.currentTab) continue;
+      const card = document.querySelector(`.skill-card .up-btn[data-skill="${id}"]`)?.closest('.skill-card');
+      if (!card) continue;
+      const cost = getSkillCost(id);
+      const isMax = isMaxLevel(id);
+      const cantAfford = !isMax && State.coin < cost;
+      card.classList.toggle('cant-afford', cantAfford);
+      const btn = card.querySelector('.up-btn');
+      if (btn && !isMax) {
+        btn.disabled = cantAfford;
+        const costEl = btn.querySelector('.c')?.nextSibling;
+        if (costEl) costEl.textContent = ' ' + formatCoin(cost) + ' ';
+      }
+    }
+  },
+
+  handleUpgrade(id) {
+    const result = upgradeSkill(id);
+    if (!result.ok) return;
+    this.refreshCoin();
+    this.renderSkillList();
+    this.refreshStatsPreview();
+    // 自动拆包器解锁时刷新 robot chip
+    if (id === 'B_autoOpen') this.refreshRobotChip();
+    // 自动补货解锁时刷新续包档位切换 chip
+    if (id === 'B_restock') this.refreshRestockToggle();
+  },
+
+  /* ========== 事件绑定 ========== */
+  bindEvents() {
+    // 页面切换
+    document.getElementById('btnOpenSkill')?.addEventListener('click', () => this.switchPage('skill'));
+    document.getElementById('btnBackHome')?.addEventListener('click', () => this.switchPage('home'));
+
+    // 广告
+    document.getElementById('btnWatchAd')?.addEventListener('click', () => this.handleAd());
+
+    // 当前属性面板
+    document.getElementById('btnStats')?.addEventListener('click', () => this.openStats());
+    document.getElementById('btnStatsClose')?.addEventListener('click', () => this.closeStats());
+    document.getElementById('statsModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'statsModal') this.closeStats();
+    });
+
+    // 幸运值弹窗
+    document.getElementById('btnLucky')?.addEventListener('click', () => this.openLucky());
+    document.getElementById('btnLuckyClose')?.addEventListener('click', () => this.closeLucky());
+    document.getElementById('luckyModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'luckyModal') this.closeLucky();
+    });
+
+    // 续包档位切换 chip（单击循环切档）
+    document.getElementById('restockToggle')?.addEventListener('click', () => this.cycleRestockTier());
+
+    // 重新开始（测试用）
+    document.getElementById('btnReset')?.addEventListener('click', () => this.handleReset());
+
+    // 划封带：touch
+    const parcel = document.getElementById('parcel');
+    if (parcel) {
+      parcel.addEventListener('touchstart', (e) => {
+        State._swipeStartX = e.touches[0].clientX;
+        onSwipeStart(e);
+      }, { passive: false });
+      parcel.addEventListener('touchmove', (e) => onSwipeMove(e), { passive: false });
+      parcel.addEventListener('touchend', (e) => onSwipeEnd(e), { passive: true });
+      parcel.addEventListener('touchcancel', (e) => onSwipeEnd(e), { passive: true });
+      // 鼠标（桌面调试）
+      parcel.addEventListener('mousedown', (e) => {
+        State._swipeStartX = e.clientX;
+        onSwipeStart(e);
+      });
+      parcel.addEventListener('mousemove', (e) => {
+        if (getParcelState() === 'opening') onSwipeMove(e);
+      });
+      parcel.addEventListener('mouseup', (e) => onSwipeEnd(e));
+      parcel.addEventListener('mouseleave', (e) => onSwipeEnd(e));
+    }
+  },
+
+  handleAd() {
+    const r = Ad.watch();
+    if (!r.ok) return;
+    this.refreshCoin();
+    this.refreshBuyRow();
+    this.refreshSkillList();
+    // 金币 bump
+    this.refreshCoin();
+  },
+
+  /* ========== 当前属性入口 + Modal ========== */
+  refreshStatsPreview() {
+    const el = document.getElementById('statsPreview');
+    if (!el || typeof getCurrentStats !== 'function') return;
+    const s = getCurrentStats();
+    const fx = s.effects;
+    const parts = [];
+    if (fx.valueMult > 1.001) parts.push(`价值×${fx.valueMult.toFixed(2)}`);
+    if (s.autoOpenUnlocked) parts.push(`自动拆${s.autoInterval.toFixed(1)}s`);
+    if (parts.length === 0) parts.push('未升级');
+    el.innerHTML = parts.slice(0, 3).map(p => `<span class="up">${p}</span>`).join(' · ');
+  },
+
+  /* ========== 幸运值入口预览（已简化为 chip，无需刷新）========== */
+  refreshLuckyPreview() {
+    // 简单 chip 入口，不在按钮上展示详细等级；
+    // 详细等级展示在弹窗内（renderLuckyContent 读取 State.luckyLv）。
+  },
+
+  /* ========== 机器人 chip 状态（自动拆包器解锁）========== */
+  refreshRobotChip() {
+    const chip = document.getElementById('robotChip');
+    if (!chip) return;
+    const txt = chip.querySelector('.robot-text');
+    if (State.autoOpenUnlocked) {
+      chip.classList.add('unlocked');
+      chip.classList.remove('locked');
+      if (txt) txt.textContent = '已解锁';
+    } else {
+      chip.classList.remove('unlocked');
+      chip.classList.add('locked');
+      if (txt) txt.textContent = '未解锁';
+    }
+  },
+
+  /* ========== 续包档位切换 chip（自动补货解锁后显示）========== */
+  refreshRestockToggle() {
+    const chip = document.getElementById('restockToggle');
+    if (!chip) return;
+    if (!State.autoRestockUnlocked) {
+      chip.hidden = true;
+      return;
+    }
+    chip.hidden = false;
+    this._updateRestockLabel();
+  },
+
+  _updateRestockLabel() {
+    const lbl = document.getElementById('restockTierLabel');
+    if (!lbl) return;
+    const tier = TIER[State.autoRestockTier];
+    if (tier) lbl.textContent = `${tier.icon} ${tier.cn}`;
+  },
+
+  cycleRestockTier() {
+    // 循环：ordinary → premium → luxury → ordinary
+    const order = ['ordinary', 'premium', 'luxury'];
+    const idx = order.indexOf(State.autoRestockTier);
+    const next = order[(idx + 1) % order.length];
+    State.autoRestockTier = next;
+    save();
+    this._updateRestockLabel();
+    this.refreshBuyRow();  // 同步 buy-row 上的"自动补货中"标签位置
+    // 视觉反馈：标签短暂变红
+    const lbl = document.getElementById('restockTierLabel');
+    if (lbl) {
+      lbl.classList.add('changed');
+      setTimeout(() => lbl.classList.remove('changed'), 400);
+    }
+  },
+
+  openStats() {
+    if (typeof getCurrentStats !== 'function') return;
+    const stats = getCurrentStats();
+    this.renderStatsContent(stats);
+    document.getElementById('statsModal')?.classList.add('show');
+  },
+
+  closeStats() {
+    document.getElementById('statsModal')?.classList.remove('show');
+  },
+
+  /* ========== 幸运值弹窗 ========== */
+  openLucky() {
+    this.renderLuckyContent();
+    document.getElementById('luckyModal')?.classList.add('show');
+  },
+
+  closeLucky() {
+    document.getElementById('luckyModal')?.classList.remove('show');
+  },
+
+  renderLuckyContent() {
+    const body = document.getElementById('luckyModalBody');
+    if (!body) return;
+    const stats = getCurrentStats();
+    const order = ['ordinary', 'premium', 'luxury'];
+    body.innerHTML = '<div class="lucky-cards">' + order.map(tierId => {
+      const tier = TIER[tierId];
+      const t = stats.tiers[tierId];
+      const lv = t.luckyLv || 0;
+      const maxLv = t.luckyMaxLv || LUCKY.MAX_LEVEL;
+      const isMax = lv >= maxLv;
+      const cost = isMax ? 0 : getLuckyCost(tierId);
+      const cantAfford = !isMax && State.coin < cost;
+      const winPct = t.winPct || 0;  // 赚钱概率（所有 value > price 物品概率之和）
+
+      // 等级进度条
+      const progressPct = (lv / maxLv) * 100;
+      // 升级按钮
+      let btnHtml;
+      if (isMax) {
+        btnHtml = `<button class="lc-up-btn maxed" disabled>
+          <span class="luc-label">已满级</span>
+          <span class="luc-cost">MAX</span>
+        </button>`;
+      } else {
+        const cls = cantAfford ? 'lc-up-btn cant-afford' : 'lc-up-btn';
+        btnHtml = `<button class="${cls}" data-tier="${tierId}" ${cantAfford ? 'disabled' : ''}>
+          <span class="luc-label">升级</span>
+          <span class="luc-cost"><span class="c">◉</span> ${formatCoin(cost)}</span>
+        </button>`;
+      }
+      // 期望盈亏
+      const evClass = t.expectedProfit >= 0 ? 'pos' : 'neg';
+      const evSign = t.expectedProfit >= 0 ? '+' : '';
+      return `<div class="lucky-card ${tier.className || ''} ${isMax ? 'maxed' : ''}">
+        <div class="lc-head">
+          <div class="lc-head-l">
+            <span class="lc-ic">${tier.icon}</span>
+            <div>
+              <div class="lc-name">${tier.cn}</div>
+              <div class="lc-price">${tier.label} · ${tier.price} ◉</div>
+            </div>
+          </div>
+        </div>
+        <div class="lc-lvrow">
+          <span class="lc-lv-label">幸运等级</span>
+          <div class="lc-lv-track"><div class="lc-lv-fill" style="width:${progressPct}%"></div></div>
+          <span class="lc-lv-num">${lv}/${maxLv}</span>
+        </div>
+        <div class="lc-info">
+          <div class="lc-info-block">
+            <span class="lc-info-label">赚钱概率</span>
+            <span class="lc-info-val">${winPct.toFixed(1)}%</span>
+          </div>
+          <div class="lc-info-block" style="text-align:center;">
+            <span class="lc-info-label">期望盈亏</span>
+            <span class="lc-info-val ${evClass}">${evSign}${t.expectedProfit.toFixed(1)}</span>
+          </div>
+          <div class="lc-info-block" style="text-align:right;">
+            <span class="lc-info-label">ROI</span>
+            <span class="lc-info-val ${evClass}">${evSign}${(t.expectedROI * 100 - 100).toFixed(0)}%</span>
+          </div>
+          <div style="display:flex;align-items:center;">
+            ${btnHtml}
+          </div>
+        </div>
+      </div>`;
+    }).join('') + '</div>';
+
+    // 绑定升级按钮
+    body.querySelectorAll('.lc-up-btn[data-tier]').forEach(btn => {
+      btn.addEventListener('click', () => this.handleLuckyUpgrade(btn.dataset.tier));
+    });
+  },
+
+  handleLuckyUpgrade(tierId) {
+    const result = upgradeLucky(tierId);
+    if (!result.ok) {
+      // 简短提示
+      this.spawnPityTag('restock-fail', result.msg);
+      return;
+    }
+    // 升级成功：重渲染弹窗 + 首页预览 + 金币
+    this.refreshCoin();
+    this.refreshLuckyPreview();
+    this.renderLuckyContent();
+    // 顺手刷新属性弹窗的内容（如果在打开状态）
+    if (document.getElementById('statsModal')?.classList.contains('show')) {
+      this.renderStatsContent(getCurrentStats());
+    }
+    // 升级成功飘字
+    const tier = TIER[tierId];
+    if (tier) this.spawnPityTag('lucky', `🍀 ${tier.cn} 幸运 Lv.${getLuckyLv(tierId)}`);
+  },
+
+  /* ========== 重新开始（测试用：清存档并刷新）========== */
+  handleReset() {
+    if (!confirm('确定清除存档重新开始？所有金币、等级、幸运值都会清空。')) return;
+    try {
+      localStorage.removeItem(CONFIG.SAVE_KEY);
+    } catch (e) {
+      console.warn('清除存档失败', e);
+    }
+    location.reload();
+  },
+
+  renderStatsContent(stats) {
+    const body = document.getElementById('statsModalBody');
+    if (!body) return;
+    const fx = stats.effects;
+
+    // === 第 1 段：开箱概率（按档位）===
+    let tiersHtml = '';
+    for (const tierId in stats.tiers) {
+      const t = stats.tiers[tierId];
+      const rows = t.items.map(it => {
+        const cls = it.isBad ? 'bad' : (it.isHidden ? 'hidden' : (it.isRare ? 'rare' : ''));
+        const delta = it.delta;
+        // 隐藏款：统一显示为"神秘礼物"+ ❓，不暴露实际物品
+        const displayEmoji = it.isHidden ? '❓' : it.emoji;
+        const displayName = it.isHidden ? '神秘礼物' : it.name;
+        let upHtml = '';
+        if (Math.abs(delta) >= 0.05) {
+          const sign = delta > 0 ? '+' : '';
+          upHtml = `<span class="ir-up" style="color:${delta > 0 ? 'var(--green)' : 'var(--red)'}">${sign}${delta.toFixed(1)}%</span>`;
+        } else {
+          upHtml = `<span class="ir-up"></span>`;  // 空占位，无横线
+        }
+        return `<div class="item-row ${cls}">
+          <span class="ir-em">${displayEmoji}</span>
+          <span class="ir-name">${displayName}</span>
+          <span class="ir-val">${it.value} ◉</span>
+          ${upHtml}
+          <span class="ir-pct">${it.pct.toFixed(1)}%</span>
+        </div>`;
+      }).join('');
+      const evClass = t.expectedProfit >= 0 ? '' : 'neg';
+      const evSign = t.expectedProfit >= 0 ? '+' : '';
+      const roiPct = (t.expectedROI * 100 - 100).toFixed(0);
+      const roiSign = roiPct >= 0 ? '+' : '';
+      tiersHtml += `<div class="tier-block">
+        <div class="tier-head">
+          <span class="th-name"><span class="th-ic">${t.icon}</span>${t.name} · ${t.price} ◉</span>
+          <span class="th-ev ${evClass}">期望 ${evSign}${t.expectedProfit.toFixed(1)} · ROI ${roiSign}${roiPct}%</span>
+        </div>
+        ${rows}
+      </div>`;
+    }
+
+    // === 第 2 段：开箱倍率（仅价值加成）===
+    const valCls = fx.valueMult > 1.001 ? '' : 'base';
+    const valText = fx.valueMult > 1.001 ? `×${fx.valueMult.toFixed(2)}` : '×1.00';
+
+    const section2 = `<div class="stats-section">
+      <div class="sec-title"><span class="sec-ic">💰</span>开箱倍率</div>
+      <div class="attr-row"><span class="ar-name">物品价值（A·价值加成）</span><span class="ar-val ${valCls}">${valText}</span></div>
+    </div>`;
+
+    // === 第 3 段：幸运值（每档）===
+    let luckyHtml = '';
+    for (const tierId in stats.tiers) {
+      const t = stats.tiers[tierId];
+      const lv = t.luckyLv || 0;
+      const maxLv = t.luckyMaxLv || 10;
+      luckyHtml += `<div class="attr-row">
+        <span class="ar-name">${t.icon} ${t.name}</span>
+        <span class="ar-val">Lv.${lv} / ${maxLv} · 稀有 ${t.rarePct.toFixed(1)}%</span>
+      </div>`;
+    }
+    const sectionLucky = `<div class="stats-section">
+      <div class="sec-title"><span class="sec-ic">🍀</span>幸运值（首页主升级）</div>
+      ${luckyHtml}
+    </div>`;
+
+    // === 第 4 段：自动化 ===
+    const autoOpenText = stats.autoOpenUnlocked ? `已解锁 · ${stats.autoInterval.toFixed(1)} 秒/次` : '未解锁';
+    const autoOpenCls = stats.autoOpenUnlocked ? '' : 'base';
+    const autoSellText = stats.autoSellUnlocked ? '已开启' : '未开启';
+    const autoSellCls = stats.autoSellUnlocked ? '' : 'base';
+    const autoBulkText = stats.autoBulkUnlocked ? `已解锁（${TIER[stats.autoBulkTier].cn}）` : '未解锁';
+    const autoBulkCls = stats.autoBulkUnlocked ? '' : 'base';
+    const autoRestockText = stats.autoRestockUnlocked
+      ? `已解锁（${TIER[stats.autoRestockTier].cn}）`
+      : '未解锁';
+    const autoRestockCls = stats.autoRestockUnlocked ? '' : 'base';
+
+    const section3 = `<div class="stats-section">
+      <div class="sec-title"><span class="sec-ic">🤖</span>自动化</div>
+      <div class="attr-row"><span class="ar-name">自动拆包器</span><span class="ar-val ${autoOpenCls}">${autoOpenText}</span></div>
+      <div class="attr-row"><span class="ar-name">自动补货</span><span class="ar-val ${autoRestockCls}">${autoRestockText}</span></div>
+      <div class="attr-row"><span class="ar-name">自动售卖站</span><span class="ar-val ${autoSellCls}">${autoSellText}</span></div>
+      <div class="attr-row"><span class="ar-name">批量采购</span><span class="ar-val ${autoBulkCls}">${autoBulkText}</span></div>
+    </div>`;
+
+    body.innerHTML = `
+      <div class="stats-section">
+        <div class="sec-title"><span class="sec-ic">📦</span>开箱概率（每档物品实际掉率）</div>
+        ${tiersHtml}
+        <div class="hint-text">右侧 % 为当前实际概率，末尾为相对原始的增减</div>
+      </div>
+      ${sectionLucky}
+      ${section2}
+      ${section3}
+    `;
+  },
+
+  switchPage(name) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + name)?.classList.add('active');
+    // 每次进入技能页，刷新状态
+    if (name === 'skill') this.renderSkillList();
+  },
+
+  /* ========== 贴面单小游戏（嵌入 parcel 区域） ========== */
+  _sortState: null,
+
+  openSortingGame() {
+    const inline = document.getElementById('sortInline');
+    const empty = document.getElementById('parcelEmpty');
+    const parcel = document.getElementById('parcel');
+    if (!inline) return;
+    // 隐藏其他，显示贴面单
+    if (empty) empty.style.display = 'none';
+    if (parcel) parcel.style.display = 'none';
+    inline.classList.add('active');
+    inline.style.display = 'block';
+    this._sortState = { dragging: false, sessionScore: 0, stuck: false };
+    this._resetSortTape();
+    this._bindSortEvents();
+  },
+
+  closeSortingGame() {
+    const inline = document.getElementById('sortInline');
+    const empty = document.getElementById('parcelEmpty');
+    if (!inline) return;
+    inline.classList.remove('active');
+    inline.style.display = 'none';
+    if (empty) empty.style.display = 'flex';
+    this._unbindSortEvents();
+    this._sortState = null;
+    this.refreshCoin();
+  },
+
+  _resetSortTape() {
+    const inline = document.getElementById('sortInline');
+    const tape = document.getElementById('sortTape');
+    const box = document.getElementById('sortBox');
+    if (!inline || !tape || !box) return;
+
+    const inlineRect = inline.getBoundingClientRect();
+    const tapeW = 50, tapeH = 88;
+
+    // 随机位置：在区域内，避开盒子中心
+    const boxCX = inlineRect.width / 2;
+    const boxCY = inlineRect.height / 2;
+
+    let lx, ly;
+    let attempts = 0;
+    do {
+      lx = Math.random() * (inlineRect.width - tapeW);
+      ly = Math.random() * (inlineRect.height - tapeH - 40) + 10;
+      attempts++;
+    } while (
+      attempts < 20 &&
+      Math.abs(lx + tapeW/2 - boxCX) < 90 &&
+      Math.abs(ly + tapeH/2 - boxCY) < 70
+    );
+
+    // 瞬间复位（不走过渡），下一帧再恢复过渡以便拖动/贴附动画生效
+    tape.style.transition = 'none';
+    tape.style.left = lx + 'px';
+    tape.style.top = ly + 'px';
+    tape.classList.remove('dragging', 'stuck');
+    void tape.offsetWidth; // 强制 reflow
+    tape.style.transition = '';
+
+    // 重置盒子胶带效果 + 涟漪
+    const boxBody = box.querySelector('.sort-box-body');
+    if (boxBody) boxBody.classList.remove('taped', 'taped-perfect', 'ripple');
+
+    // 隐藏反馈
+    const fb = document.getElementById('sortFeedback');
+    if (fb) { fb.classList.remove('show', 'perfect', 'good', 'miss'); fb.textContent = ''; }
+
+    this._sortState.stuck = false;
+  },
+
+  _bindSortEvents() {
+    const tape = document.getElementById('sortTape');
+    const inline = document.getElementById('sortInline');
+    if (!tape || !inline) return;
+
+    const onStart = (e) => {
+      if (this._sortState && this._sortState.stuck) return;
+      e.preventDefault();
+      const touch = e.touches ? e.touches[0] : e;
+      const rect = tape.getBoundingClientRect();
+      const inlineRect = inline.getBoundingClientRect();
+      this._sortState.dragging = true;
+      this._sortState.offsetX = touch.clientX - rect.left;
+      this._sortState.offsetY = touch.clientY - rect.top;
+      this._sortState.inlineLeft = inlineRect.left;
+      this._sortState.inlineTop = inlineRect.top;
+      tape.classList.add('dragging');
+      tape.classList.remove('stuck');
+    };
+
+    const onMove = (e) => {
+      if (!this._sortState || !this._sortState.dragging) return;
+      e.preventDefault();
+      const touch = e.touches ? e.touches[0] : e;
+      const inlineRect = inline.getBoundingClientRect();
+      const tapeW = 50, tapeH = 88;
+
+      let nx = touch.clientX - this._sortState.inlineLeft - this._sortState.offsetX;
+      let ny = touch.clientY - this._sortState.inlineTop - this._sortState.offsetY;
+
+      nx = Math.max(0, Math.min(inlineRect.width - tapeW, nx));
+      ny = Math.max(0, Math.min(inlineRect.height - tapeH, ny));
+
+      tape.style.left = nx + 'px';
+      tape.style.top = ny + 'px';
+    };
+
+    const onEnd = (e) => {
+      if (!this._sortState || !this._sortState.dragging) return;
+      this._sortState.dragging = false;
+      tape.classList.remove('dragging');
+
+      const inlineRect = inline.getBoundingClientRect();
+      const box = document.getElementById('sortBox');
+      const boxRect = box.getBoundingClientRect();
+
+      const tapeCX = parseFloat(tape.style.left) + 25;
+      const tapeCY = parseFloat(tape.style.top) + 44;
+      const boxCX = boxRect.left - inlineRect.left + boxRect.width / 2;
+      const boxCY = boxRect.top - inlineRect.top + boxRect.height / 2;
+
+      const dist = Math.sqrt((tapeCX - boxCX) ** 2 + (tapeCY - boxCY) ** 2);
+      const maxDist = Math.sqrt(boxRect.width ** 2 + boxRect.height ** 2) / 2;
+      const errorRate = dist / maxDist;
+
+      let reward = 0;
+      let cls = '';
+      let text = '';
+
+      if (errorRate < 0.2) {
+        reward = 2; cls = 'perfect'; text = '完美 +2 ◉';
+      } else if (errorRate < 0.45) {
+        reward = 1; cls = 'good'; text = '合格 +1 ◉';
+      } else {
+        reward = 0; cls = 'miss'; text = '贴歪了 +0';
+      }
+
+      // 恢复 CSS 过渡，让运单缓缓压平贴上（opacity 由 .stuck 控制）
+      tape.style.transition = '';
+      tape.style.opacity = '';
+      tape.classList.add('stuck');
+
+      // 盒子显示胶带效果 + 按压涟漪
+      const boxBody = box.querySelector('.sort-box-body');
+      if (boxBody) {
+        boxBody.classList.remove('ripple');
+        void boxBody.offsetWidth; // 重新触发动画
+        if (errorRate < 0.2) boxBody.classList.add('taped-perfect');
+        else if (errorRate < 0.45) boxBody.classList.add('taped');
+        if (reward > 0) boxBody.classList.add('ripple');
+      }
+
+      // 文字反馈
+      const fb = document.getElementById('sortFeedback');
+      if (fb) {
+        fb.textContent = text;
+        fb.className = 'sort-feedback show ' + cls;
+      }
+
+      // 入账
+      if (reward > 0) {
+        State.coin += reward;
+        this._sortState.sessionScore += reward;
+        save();
+      }
+      this.refreshCoin();
+      this.refreshBuyRow();  // 钱够了要立刻移除"金币不足"遮罩
+
+      this._sortState.stuck = true;
+
+      // 1 秒后刷新下一张
+      setTimeout(() => {
+        if (this._sortState && !this._sortState.dragging) this._resetSortTape();
+      }, 1000);
+    };
+
+    tape.addEventListener('touchstart', onStart, { passive: false });
+    inline.addEventListener('touchmove', onMove, { passive: false });
+    inline.addEventListener('touchend', onEnd);
+
+    tape.addEventListener('mousedown', onStart);
+    inline.addEventListener('mousemove', onMove);
+    inline.addEventListener('mouseup', onEnd);
+    inline.addEventListener('mouseleave', onEnd);
+
+    this._sortEvents = { onStart, onMove, onEnd, tape, inline };
+  },
+
+  _unbindSortEvents() {
+    if (!this._sortEvents) return;
+    const { onStart, onMove, onEnd, tape, inline } = this._sortEvents;
+    tape.removeEventListener('touchstart', onStart);
+    inline.removeEventListener('touchmove', onMove);
+    inline.removeEventListener('touchend', onEnd);
+    tape.removeEventListener('mousedown', onStart);
+    inline.removeEventListener('mousemove', onMove);
+    inline.removeEventListener('mouseup', onEnd);
+    inline.removeEventListener('mouseleave', onEnd);
+    this._sortEvents = null;
+  },
+};
