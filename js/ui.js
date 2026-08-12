@@ -17,6 +17,8 @@ const UI = {
     this.refreshLuckyPreview();
     this.refreshRobotChip();
     this.refreshRestockToggle();
+    this.refreshAutoOpenToggle();
+    this.renderStorageBadge();  // 初始化挂机存储角标（存储 > 0 才显示）
     this.setupDragScroll(document.getElementById('buyRow'));
   },
 
@@ -195,24 +197,38 @@ const UI = {
     this.refreshBuyRow();
   },
 
+  /* ========== 主位清空时，无缝把预备队数据换到主位（无视觉预备队） ========== */
+  swapToNextParcel() {
+    const main = document.getElementById('parcel');
+    const empty = document.getElementById('parcelEmpty');
+    if (!main) return;
+    // 把预备队的数据同步到主位
+    main.dataset.state = 'sealed';
+    main.style.display = 'block';
+    // 重置封带
+    const tapeH = document.getElementById('parcelTapeH');
+    const tapeV = document.getElementById('parcelTapeV');
+    if (tapeH) tapeH.style.clipPath = 'inset(0 0 0 0)';
+    if (tapeV) tapeV.style.clipPath = 'inset(0 0 0 0)';
+    // 隐藏空状态
+    if (empty) empty.style.display = 'none';
+  },
+
   /* ========== 拆包 FX ========== */
   onItemRolled(item, tierId) {
     // 隐藏提示
     const hint = document.getElementById('swipeHint');
     if (hint) hint.classList.add('hide');
 
-    // 保底提示（先于 FX 触发，让玩家注意力在中间）
-    if (item.isFirstProtect) {
-      setTimeout(() => this.spawnPityTag('first'), 250);
-    } else if (item.isRarePity) {
-      setTimeout(() => this.spawnPityTag('rarePity'), 250);
-    } else if (item.noRareStreakNext >= 3) {
-      setTimeout(() => this.spawnPityTag('rareClose'), 250);
+    // 保底提示（只对普通包裹的"正收益保底"提示，其他不弹）
+    if (item.isOrdinaryPity) {
+      setTimeout(() => this.spawnPityTag('ordinary-pity'), 250);
     }
 
-    // 隐藏款暴富特效
+    // 隐藏款暴富特效：全屏豪华动画
     if (item.isHidden) {
-      setTimeout(() => this.spawnPityTag('hidden'), 250);
+      setTimeout(() => this.spawnHiddenReveal(item), 250);
+      return; // 隐藏款跳过常规 fx
     }
 
     // 触发 fx
@@ -276,41 +292,130 @@ const UI = {
     }
   },
 
-  /* ========== 自动拆包器 tick ========== */
-  onAutoOpen(tierId, item, gain) {
+  /* ========== 自动拆包器 tick ==========
+   * cost = 本次扣的快递价格
+   * gain = 物品实际售价
+   * net  = gain - cost（正=赚，负=亏，0=回本）
+   * 金币显示直接跳到最终值（State.coin 已经在 main.js 里一次性算好），
+   * 只飘一次净差值提示，不再分段飘"-X ◉"和"+Y ◉"。
+   */
+  onAutoOpen(tierId, item, cost, gain, net) {
     this.refreshCoin();
     this.refreshBuyRow();
     this.refreshSkillList();
-    // 在 parcel 区域上方飘一行小字提示
-    this.spawnAutoFloat(tierId, item, gain);
+    this.renderStorageBadge();  // 同步刷新机器人角标（存储进度）
+    // 在机器人 chip 上方飘一行"档位 + 物品 + 净差值"小字
+    this.spawnAutoFloat(tierId, item, cost, gain, net);
   },
 
-  spawnAutoFloat(tierId, item, gain) {
-    // 在机器人 chip 上方飘一行小字提示
+  spawnAutoFloat(tierId, item, cost, gain, net) {
     const chip = document.getElementById('robotChip');
     if (!chip) return;
+    // 单行飘字：物品 icon + 净差值
     const numEl = document.createElement('div');
-    numEl.className = 'auto-float-num';
-    const sign = gain >= 0 ? '+' : '';
-    numEl.textContent = `${TIER[tierId].cn} ${sign}${gain} ◉`;
+    numEl.className = 'auto-float-num' + (net < 0 ? ' minus' : '') + (net === 0 ? ' even' : '');
+    const sign = net >= 0 ? '+' : '';
+    numEl.textContent = `${item.emoji} ${sign}${net} ◉`;
     chip.appendChild(numEl);
     requestAnimationFrame(() => numEl.classList.add('go'));
     setTimeout(() => numEl.remove(), 1400);
   },
 
-  /* ========== 保底提示横幅（首抽保护 / 运气象 / 自动补货 / 幸运值升级）========== */
-  spawnPityTag(kind, customText) {
-    // kind: 'first' | 'rarePity' | 'rareClose' | 'restock' | 'restock-fail' | 'lucky' | 'hidden'
-    const map = {
-      first:        { text: '🛡️ 首抽保护',     color: 'var(--green)',  dur: 1100 },
-      rarePity:     { text: '✨ 必中！',         color: 'var(--red)',    dur: 1400 },
-      rareClose:    { text: '运气象蓄力中…',   color: 'var(--ink-soft)', dur: 900 },
-      restock:      { text: '🔄 自动补货',       color: 'var(--green)',  dur: 900 },
-      'restock-fail': { text: customText || '❌ 补货失败', color: 'var(--red)', dur: 1400 },
-      lucky:        { text: customText || '🍀 幸运值提升', color: 'var(--green)', dur: 1200 },
-      hidden:       { text: '👑 隐藏款！暴富！', color: '#b8860b',      dur: 2200 },
+  /* ========== 机器人挂机存储角标（点击即领取）========== */
+  renderStorageBadge() {
+    const badge = document.getElementById('storageBadge');
+    if (!badge) return;
+    const storage = (typeof State !== 'undefined') ? (State.idleStorage || 0) : 0;
+    const max = (typeof State !== 'undefined') ? (State.idleStorageMax || 50) : 50;
+    const unlocked = (typeof State !== 'undefined') && State.autoOpenUnlocked;
+    // 未解锁机器人 或 存储 = 0 → 隐藏
+    if (!unlocked || storage <= 0) {
+      badge.hidden = true;
+      badge.classList.remove('full');
+      return;
+    }
+    badge.hidden = false;
+    // 数字
+    const bn = badge.querySelector('.sb-num');
+    if (bn) bn.textContent = `${Math.floor(storage)}/${max}`;
+    // 满状态
+    if (storage >= max) badge.classList.add('full');
+    else badge.classList.remove('full');
+  },
+
+  spawnStorageFullToast() {
+    // 复用 spawnPityTag 弹个"存储已满，请领取"提示
+    this.spawnPityTag('storage-full', '存储已满，请领取');
+  },
+
+  /* ========== 测试隐藏款（开发用）：随机挑一个档位的隐藏款触发揭示 ========== */
+  testHiddenReveal() {
+    const tierIds = Object.keys(TIER);
+    const tierId = tierIds[Math.floor(Math.random() * tierIds.length)];
+    const tier = TIER[tierId];
+    const hidden = tier.items.find(it => it.hidden);
+    if (!hidden) return;
+    const fakeItem = {
+      name: hidden.name,
+      emoji: hidden.emoji,
+      value: hidden.value,
+      finalValue: hidden.value,
+      isHidden: true,
     };
-    const cfg = map[kind] || map.rareClose;
+    this.spawnHiddenReveal(fakeItem);
+  },
+
+  /* ========== 隐藏款豪华揭示动画（屏幕中央） ========== */
+  spawnHiddenReveal(item) {
+    // 入账（隐藏款必入账，玩家开出来就获得金币）
+    State.coin += item.finalValue;
+    save();
+    this.refreshCoin();
+    this.refreshBuyRow();
+    this.refreshSkillList();
+
+    // 创建全屏遮罩 + 中央揭示
+    const overlay = document.createElement('div');
+    overlay.className = 'hidden-reveal';
+    overlay.innerHTML = `
+      <div class="hr-particles">
+        ${Array.from({length: 24}).map((_,i) => `<i style="--i:${i}"></i>`).join('')}
+      </div>
+      <div class="hr-card">
+        <div class="hr-tag">👑 隐藏款！</div>
+        <div class="hr-icon">${item.emoji}</div>
+        <div class="hr-name">${item.name}</div>
+        <div class="hr-value">+${formatCoin(item.finalValue)} 金</div>
+        <div class="hr-tap">点击关闭</div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    // 强制 reflow
+    overlay.offsetHeight;
+    overlay.classList.add('show');
+
+    const close = () => {
+      overlay.classList.remove('show');
+      setTimeout(() => overlay.remove(), 400);
+    };
+    overlay.addEventListener('click', close, { once: true });
+    // 自动关闭
+    setTimeout(close, 4500);
+  },
+
+  /* ========== 保底提示横幅（普通包必中 / 自动补货 / 幸运值升级）========== */
+  spawnPityTag(kind, customText) {
+    // kind: 'ordinary-pity' | 'restock' | 'restock-fail' | 'lucky' | 'hidden' | 'storage-full' | 'collect'
+    const map = {
+      'ordinary-pity': { text: '🎁 运气象必中！',  color: 'var(--red)',  dur: 1400 },
+      restock:        { text: '🔄 自动补货',       color: 'var(--green)',  dur: 900 },
+      'restock-fail': { text: customText || '❌ 补货失败', color: 'var(--red)', dur: 1400 },
+      lucky:          { text: customText || '🍀 幸运值提升', color: 'var(--green)', dur: 1200 },
+      hidden:         { text: '👑 隐藏款！暴富！', color: '#b8860b',      dur: 2200 },
+      'storage-full': { text: customText || '存储已满，请领取', color: 'var(--ink-soft)', dur: 1400 },
+      collect:        { text: customText || '📥 领取成功',     color: 'var(--green)',  dur: 1200 },
+    };
+    const cfg = map[kind] || map['ordinary-pity'];
     const el = document.createElement('div');
     el.className = 'pity-tag';
     el.style.color = cfg.color;
@@ -336,6 +441,17 @@ const UI = {
         setTimeout(() => el.classList.remove('bump'), 130);
       }
     });
+  },
+
+  /* ========== 金币扣除飘字（自动补货扣下一个时用）========== */
+  showCoinDeduct(amount) {
+    const el = document.getElementById('coinDeduct');
+    if (!el) return;
+    el.textContent = `-${amount} ◉`;
+    // 重启动画
+    el.classList.remove('go');
+    void el.offsetWidth;  /* 强制 reflow */
+    el.classList.add('go');
   },
 
   /* ========== 技能页 ========== */
@@ -449,10 +565,16 @@ const UI = {
     this.refreshCoin();
     this.renderSkillList();
     this.refreshStatsPreview();
-    // 自动拆包器解锁时刷新 robot chip
-    if (id === 'B_autoOpen') this.refreshRobotChip();
+    // 自动拆包器解锁时刷新 robot chip + 档位切换 chip + 存储角标
+    if (id === 'B_autoOpen') {
+      this.refreshRobotChip();
+      this.refreshAutoOpenToggle();
+      this.renderStorageBadge();
+    }
     // 自动补货解锁时刷新续包档位切换 chip
     if (id === 'B_restock') this.refreshRestockToggle();
+    // 批量采购解锁时也要刷新档位 chip（解锁后允许切到精品/豪华）
+    if (id === 'B_bulkBuy') this._updateAutoOpenLabel();
   },
 
   /* ========== 事件绑定 ========== */
@@ -478,11 +600,31 @@ const UI = {
       if (e.target.id === 'luckyModal') this.closeLucky();
     });
 
-    // 续包档位切换 chip（单击循环切档）
-    document.getElementById('restockToggle')?.addEventListener('click', () => this.cycleRestockTier());
+    // 续包档位 chip → 打开共用档位选择弹窗
+    document.getElementById('restockToggle')?.addEventListener('click', () => this.openTierPicker('autoRestockTier'));
+    // 自动拆包档位 chip → 打开同一个档位选择弹窗
+    document.getElementById('autoOpenToggle')?.addEventListener('click', () => this.openTierPicker('autoOpenTier'));
+    // 档位选择弹窗：关闭按钮 + 遮罩点击
+    document.getElementById('btnTierPickerClose')?.addEventListener('click', () => this.closeTierPicker());
+    document.getElementById('tierPickerModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'tierPickerModal') this.closeTierPicker();
+    });
+
+    // 挂机存储：角标点击即领取
+    document.getElementById('storageBadge')?.addEventListener('click', () => {
+      if (typeof collectIdleStorage === 'function') {
+        const r = collectIdleStorage();
+        if (r && r.ok) {
+          this.spawnPityTag('collect', `📥 领取 +${r.amount} ◉`);
+        }
+      }
+    });
 
     // 重新开始（测试用）
     document.getElementById('btnReset')?.addEventListener('click', () => this.handleReset());
+
+    // 测试隐藏款（开发用）
+    document.getElementById('btnTestHidden')?.addEventListener('click', () => this.testHiddenReveal());
 
     // 划封带：touch
     const parcel = document.getElementById('parcel');
@@ -519,7 +661,8 @@ const UI = {
 
   /* ========== 当前属性入口 + Modal ========== */
   refreshStatsPreview() {
-    const el = document.getElementById('statsPreview');
+    // 预览信息展示在弹窗标题旁（`statsPreviewInModal`），首页按钮只显示"概率"二字
+    const el = document.getElementById('statsPreviewInModal');
     if (!el || typeof getCurrentStats !== 'function') return;
     const s = getCurrentStats();
     const fx = s.effects;
@@ -527,7 +670,7 @@ const UI = {
     if (fx.valueMult > 1.001) parts.push(`价值×${fx.valueMult.toFixed(2)}`);
     if (s.autoOpenUnlocked) parts.push(`自动拆${s.autoInterval.toFixed(1)}s`);
     if (parts.length === 0) parts.push('未升级');
-    el.innerHTML = parts.slice(0, 3).map(p => `<span class="up">${p}</span>`).join(' · ');
+    el.innerHTML = parts.slice(0, 3).map(p => `<span class="mp-chip">${p}</span>`).join(' ');
   },
 
   /* ========== 幸运值入口预览（已简化为 chip，无需刷新）========== */
@@ -552,7 +695,7 @@ const UI = {
     }
   },
 
-  /* ========== 续包档位切换 chip（自动补货解锁后显示）========== */
+  /* ========== 续包档位 chip：打开自动补货档位选择弹窗 ========== */
   refreshRestockToggle() {
     const chip = document.getElementById('restockToggle');
     if (!chip) return;
@@ -564,28 +707,137 @@ const UI = {
     this._updateRestockLabel();
   },
 
-  _updateRestockLabel() {
-    const lbl = document.getElementById('restockTierLabel');
-    if (!lbl) return;
-    const tier = TIER[State.autoRestockTier];
-    if (tier) lbl.textContent = `${tier.icon} ${tier.cn}`;
+  /* ========== 自动拆包档位 chip：显示 + 循环切换 ========== */
+  refreshAutoOpenToggle() {
+    const chip = document.getElementById('autoOpenToggle');
+    if (!chip) return;
+    if (!State.autoOpenUnlocked) {
+      chip.hidden = true;
+      return;
+    }
+    chip.hidden = false;
+    this._updateAutoOpenLabel();
   },
 
-  cycleRestockTier() {
-    // 循环：ordinary → premium → luxury → ordinary
-    const order = ['ordinary', 'premium', 'luxury'];
-    const idx = order.indexOf(State.autoRestockTier);
-    const next = order[(idx + 1) % order.length];
-    State.autoRestockTier = next;
+  _updateAutoOpenLabel() {
+    const lbl = document.getElementById('autoOpenTierLabel');
+    if (!lbl) return;
+    const tier = TIER[State.autoOpenTier];
+    // 未解锁批量采购：自动回退到普通
+    if (!State.autoBulkUnlocked && State.autoOpenTier !== 'ordinary') {
+      State.autoOpenTier = 'ordinary';
+    }
+    // 自动拆包 chip 不显示档位 icon，只显示中文名
+    lbl.textContent = tier.cn;
+    // 与自动补货 chip 完全一致：点击打开弹窗选档位，无锁定灰显
+    const chip = document.getElementById('autoOpenToggle');
+    if (chip) chip.title = '点击选择档位';
+  },
+
+  /* ========== 档位选择弹窗（自动补货 / 自动拆包 完全复用）==========
+   * stateKey: 'autoOpenTier' | 'autoRestockTier'
+   * 同一个 modal，根据 stateKey 切换标题/提示/状态。
+   */
+  openTierPicker(stateKey) {
+    // 防御：两个 chip 解锁条件不同
+    if (stateKey === 'autoOpenTier' && !State.autoOpenUnlocked) return;
+    if (stateKey === 'autoRestockTier' && !State.autoRestockUnlocked) return;
+    const title = stateKey === 'autoOpenTier' ? '自动拆包档位' : '自动补货档位';
+    const hint = stateKey === 'autoOpenTier'
+      ? '选一个档位，机器人每 5 秒自动买 + 拆'
+      : '选一个档位，开完一盒自动再买同档';
+    const titleEl = document.getElementById('tierPickerTitle');
+    const hintEl = document.getElementById('tierPickerHint');
+    if (titleEl) titleEl.textContent = title;
+    if (hintEl) hintEl.textContent = hint;
+    this._renderTierPicker(stateKey);
+    document.getElementById('tierPickerModal')?.classList.add('show');
+  },
+
+  closeTierPicker() {
+    document.getElementById('tierPickerModal')?.classList.remove('show');
+  },
+
+  _renderTierPicker(stateKey) {
+    const body = document.getElementById('tierPickerBody');
+    if (!body) return;
+    // 所有档位（普通/精品/豪华/至尊/传说）
+    const order = Object.keys(TIER);
+    const stats = (typeof getCurrentStats === 'function') ? getCurrentStats() : null;
+    // 自动拆包：未解锁批量采购 → 仅普通可点（视觉禁用 + 提示）
+    const bulkLocked = (stateKey === 'autoOpenTier') && !State.autoBulkUnlocked;
+    body.innerHTML = '<div class="restock-cards">' + order.map(tierId => {
+      const tier = TIER[tierId];
+      const t = stats?.tiers?.[tierId];
+      const ev = t ? t.expectedProfit : 0;
+      const evClass = ev >= 0 ? 'pos' : 'neg';
+      const evSign = ev >= 0 ? '+' : '';
+      const isSelected = State[stateKey] === tierId;
+      const check = isSelected ? '<span class="rc-check">✓ 当前</span>' : '';
+      const locked = bulkLocked && tierId !== 'ordinary';
+      const lockTag = locked ? '<span class="rc-lock">🔒 需批量采购</span>' : '';
+      return `<button class="restock-card ${tier.className || ''} ${isSelected ? 'selected' : ''} ${locked ? 'locked' : ''}" data-tier="${tierId}">
+        <div class="rc-head">
+          <div class="rc-head-l">
+            <span class="rc-ic">${tier.icon}</span>
+            <div>
+              <div class="rc-name">${tier.cn}</div>
+              <div class="rc-price">${tier.label} · ${tier.price} ◉</div>
+            </div>
+          </div>
+          ${check}
+        </div>
+        <div class="rc-ev">
+          <span>期望盈亏</span>
+          <span class="${evClass}">${evSign}${ev.toFixed(1)} ◉</span>
+        </div>
+        ${lockTag ? `<div class="rc-lock-row">${lockTag}</div>` : ''}
+      </button>`;
+    }).join('') + '</div>';
+
+    // 绑定选择
+    body.querySelectorAll('.restock-card[data-tier]').forEach(btn => {
+      btn.addEventListener('click', () => this._selectTierFromPicker(stateKey, btn.dataset.tier));
+    });
+  },
+
+  _selectTierFromPicker(stateKey, tierId) {
+    // 自动拆包：未解锁批量采购不能选精品/豪华
+    if (stateKey === 'autoOpenTier' && !State.autoBulkUnlocked && tierId !== 'ordinary') {
+      this.spawnPityTag('restock-fail', '需先解锁「批量采购」');
+      return;
+    }
+    if (State[stateKey] === tierId) {
+      this.closeTierPicker();
+      return;
+    }
+    State[stateKey] = tierId;
     save();
-    this._updateRestockLabel();
-    this.refreshBuyRow();  // 同步 buy-row 上的"自动补货中"标签位置
+    // 同步对应 chip label
+    if (stateKey === 'autoOpenTier') {
+      this._updateAutoOpenLabel();
+    } else {
+      this._updateRestockLabel();
+      this.refreshBuyRow();  // 同步 buy-row 上"自动补货中"标签位置
+    }
     // 视觉反馈：标签短暂变红
-    const lbl = document.getElementById('restockTierLabel');
+    const lblId = stateKey === 'autoOpenTier' ? 'autoOpenTierLabel' : 'restockTierLabel';
+    const lbl = document.getElementById(lblId);
     if (lbl) {
       lbl.classList.add('changed');
       setTimeout(() => lbl.classList.remove('changed'), 400);
     }
+    // 弹窗内"已切换"提示 + 关闭
+    this._renderTierPicker(stateKey);
+    setTimeout(() => this.closeTierPicker(), 220);
+  },
+
+  _updateRestockLabel() {
+    const lbl = document.getElementById('restockTierLabel');
+    if (!lbl) return;
+    const tier = TIER[State.autoRestockTier];
+    // 不再显示档位 icon（与自动拆包 chip 风格一致）
+    if (tier) lbl.textContent = tier.cn;
   },
 
   openStats() {
@@ -609,11 +861,49 @@ const UI = {
     document.getElementById('luckyModal')?.classList.remove('show');
   },
 
+  /* ========== 破产处理：金币 ≤ 0 → 弹窗让玩家看广告续命或重置 ========== */
+  handleBankrupt() {
+    // 如果已经显示破产弹窗，不要重复弹
+    if (document.getElementById('bankruptModal')?.classList.contains('show')) return;
+    const modal = document.createElement('div');
+    modal.id = 'bankruptModal';
+    modal.className = 'modal bankrupt-modal show';
+    modal.innerHTML = `
+      <div class="modal-card bankrupt-card">
+        <div class="bankrupt-title">💸 破产了！</div>
+        <div class="bankrupt-desc">金币已经见底<br/>看广告领 30 金币继续 / 或全部清零重开</div>
+        <div class="bankrupt-actions">
+          <button class="bnk-btn bnk-ad" id="bnkAd">📺 看广告 +30 ◉</button>
+          <button class="bnk-btn bnk-reset" id="bnkReset">⟳ 全部清零重开</button>
+          <button class="bnk-btn bnk-close" id="bnkClose">关闭</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    const close = () => modal.remove();
+    document.getElementById('bnkAd')?.addEventListener('click', () => {
+      State.coin = 30;
+      save();
+      this.refreshCoin();
+      this.refreshBuyRow();
+      this.spawnPityTag('lucky', '📺 广告奖励 +30 ◉');
+      close();
+    });
+    document.getElementById('bnkReset')?.addEventListener('click', () => {
+      if (confirm('确定清零所有进度重新开始？')) {
+        localStorage.removeItem('parcel_save_v1');
+        location.reload();
+      }
+    });
+    document.getElementById('bnkClose')?.addEventListener('click', close);
+  },
+
   renderLuckyContent() {
     const body = document.getElementById('luckyModalBody');
     if (!body) return;
     const stats = getCurrentStats();
-    const order = ['ordinary', 'premium', 'luxury'];
+    // 所有档位（普通/精品/豪华/至尊/传说）— 跟 tierPicker 弹窗保持一致
+    const order = Object.keys(TIER);
     body.innerHTML = '<div class="lucky-cards">' + order.map(tierId => {
       const tier = TIER[tierId];
       const t = stats.tiers[tierId];
@@ -622,7 +912,7 @@ const UI = {
       const isMax = lv >= maxLv;
       const cost = isMax ? 0 : getLuckyCost(tierId);
       const cantAfford = !isMax && State.coin < cost;
-      const winPct = t.winPct || 0;  // 赚钱概率（所有 value > price 物品概率之和）
+      const winPct = t.winPct || 0;  // 赚钱概率
 
       // 等级进度条
       const progressPct = (lv / maxLv) * 100;
@@ -643,20 +933,20 @@ const UI = {
       // 期望盈亏
       const evClass = t.expectedProfit >= 0 ? 'pos' : 'neg';
       const evSign = t.expectedProfit >= 0 ? '+' : '';
-      return `<div class="lucky-card ${tier.className || ''} ${isMax ? 'maxed' : ''}">
-        <div class="lc-head">
-          <div class="lc-head-l">
-            <span class="lc-ic">${tier.icon}</span>
+      // 跟 tierPicker 弹窗同款卡片结构（restock-card 视觉），但底部加等级 + 升级
+      return `<div class="lucky-card restock-card ${tier.className || ''} ${isMax ? 'maxed' : ''}">
+        <div class="rc-head">
+          <div class="rc-head-l">
+            <span class="rc-ic">${tier.icon}</span>
             <div>
-              <div class="lc-name">${tier.cn}</div>
-              <div class="lc-price">${tier.label} · ${tier.price} ◉</div>
+              <div class="rc-name">${tier.cn}</div>
+              <div class="rc-price">${tier.label} · ${tier.price} ◉</div>
             </div>
           </div>
+          <span class="rc-check">Lv.${lv}/${maxLv}</span>
         </div>
         <div class="lc-lvrow">
-          <span class="lc-lv-label">幸运等级</span>
           <div class="lc-lv-track"><div class="lc-lv-fill" style="width:${progressPct}%"></div></div>
-          <span class="lc-lv-num">${lv}/${maxLv}</span>
         </div>
         <div class="lc-info">
           <div class="lc-info-block">
@@ -889,9 +1179,9 @@ const UI = {
     const boxBody = box.querySelector('.sort-box-body');
     if (boxBody) boxBody.classList.remove('taped', 'taped-perfect', 'ripple');
 
-    // 隐藏反馈
+    // 隐藏反馈（只移除 .show，让文字随透明度一起淡出，避免空矩形闪烁）
     const fb = document.getElementById('sortFeedback');
-    if (fb) { fb.classList.remove('show', 'perfect', 'good', 'miss'); fb.textContent = ''; }
+    if (fb) { fb.classList.remove('show', 'perfect', 'good', 'miss'); }
 
     this._sortState.stuck = false;
   },
@@ -960,7 +1250,7 @@ const UI = {
       } else if (errorRate < 0.45) {
         reward = 1; cls = 'good'; text = '合格 +1 ◉';
       } else {
-        reward = 0; cls = 'miss'; text = '贴歪了 +0';
+        reward = -1; cls = 'miss'; text = '贴歪了 -1 ◉';
       }
 
       // 恢复 CSS 过渡，让运单缓缓压平贴上（opacity 由 .stuck 控制）
@@ -985,11 +1275,13 @@ const UI = {
         fb.className = 'sort-feedback show ' + cls;
       }
 
-      // 入账
-      if (reward > 0) {
+      // 入账/扣款
+      if (reward !== 0) {
         State.coin += reward;
         this._sortState.sessionScore += reward;
         save();
+        // 破产检测：金币 ≤ 0 → 弹提示（看广告续命 / 重置存档）
+        if (State.coin <= 0) this.handleBankrupt();
       }
       this.refreshCoin();
       this.refreshBuyRow();  // 钱够了要立刻移除"金币不足"遮罩

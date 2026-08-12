@@ -43,7 +43,7 @@ const TIER = {
       { name: '旧杂志',  emoji: '📰', weight: 8,  value: 8 },
       { name: '小玩具',  emoji: '🧸', weight: 35, value: 12 },
       { name: '耳机',    emoji: '🎧', weight: 17, value: 40, rare: true },
-      { name: '神秘小金条', emoji: '🎁', weight: 0.3, value: 500, hidden: true },
+      { name: '神秘小金条', emoji: '🎁', weight: 0.3, value: 188, hidden: true },
     ],
     // 期望 11.94，利润 +1.94；赚钱概率 52%（小玩具+耳机）
   },
@@ -61,15 +61,15 @@ const TIER = {
       { name: '键盘',    emoji: '⌨️', weight: 20, value: 50 },
       { name: '手表',    emoji: '⌚', weight: 7,  value: 100 },
       { name: '手机',    emoji: '📱', weight: 3,  value: 150, rare: true },
-      { name: '钻石耳钉', emoji: '💎', weight: 0.2, value: 5000, hidden: true },
+      { name: '钻石耳钉', emoji: '💎', weight: 0.2, value: 888, hidden: true },
     ],
   },
   luxury: {
     id: 'luxury',
     label: 'LUXURY',
-    cn: '豪华礼盒',
+    cn: '豪华包裹',
     price: 200,
-    icon: '🎁',
+    icon: '📦',           // 统一所有档位 icon
     className: 'luxury',
     riskLabel: '搏一搏',
     items: [
@@ -78,8 +78,47 @@ const TIER = {
       { name: '平板',    emoji: '💻', weight: 18, value: 120 },
       { name: '金饰',    emoji: '💍', weight: 9,  value: 300 },
       { name: '笔记本',  emoji: '🖥️', weight: 3,  value: 1200, rare: true },
-      { name: '黄金键盘', emoji: '👑', weight: 0.1, value: 50000, hidden: true },
+      { name: '黄金键盘', emoji: '👑', weight: 0.1, value: 8888, hidden: true },
     ],
+  },
+  // ===== 新增两个档位（4 / 5）=====
+  epic: {
+    id: 'epic',
+    label: 'EPIC',
+    cn: '至尊包裹',
+    price: 1000,
+    icon: '📦',
+    className: 'epic',
+    riskLabel: '土豪专属',
+    items: [
+      { name: '空盒',    emoji: '📭', weight: 45, value: 0,    bad: true },
+      { name: '日用品',  emoji: '🧴', weight: 20, value: 200 },
+      { name: '名表',    emoji: '⌚', weight: 18, value: 600 },
+      { name: '显卡',    emoji: '🎮', weight: 12, value: 1500 },
+      { name: '名车钥匙', emoji: '🚗', weight: 4,  value: 4000, rare: true },
+      { name: '金砖',    emoji: '🟨', weight: 1,  value: 20000, hidden: true },
+    ],
+    // 期望：200*0.20 + 600*0.18 + 1500*0.12 + 4000*0.04 = 40+108+180+160 = 488
+    // 概率：赚钱 54%（日用品+名表+显卡+名车）; 期望盈亏 -512（成本 1000）；略亏但有隐藏款
+  },
+  mythic: {
+    id: 'mythic',
+    label: 'MYTHIC',
+    cn: '传说包裹',
+    price: 5000,
+    icon: '📦',
+    className: 'mythic',
+    riskLabel: '一念天堂',
+    items: [
+      { name: '空盒',    emoji: '📭', weight: 50, value: 0,     bad: true },
+      { name: '小家电',  emoji: '🍳', weight: 18, value: 800 },
+      { name: '名表',    emoji: '⌚', weight: 14, value: 2500 },
+      { name: '显卡',    emoji: '🎮', weight: 10, value: 6000 },
+      { name: '名车钥匙', emoji: '🚗', weight: 6,  value: 15000, rare: true },
+      { name: '房产证',  emoji: '🏠', weight: 1.5, value: 80000, rare: true },
+      { name: '宇宙飞船票', emoji: '🛸', weight: 0.5, value: 200000, hidden: true },
+    ],
+    // 概率：赚钱 50%；期望盈亏 -1000（成本 5000）；隐藏款 200000 = 0.5% 概率
   },
 };
 
@@ -87,32 +126,40 @@ const TIER = {
  * 每档快递独立等级，玩家通过弹窗选择要升哪一档
  * 作用：仅改概率（提升该档位稀有物权重），不改金额
  * 升级价格：每档独立曲线，高档更贵
- *   普通：base 50  × 2.5^lv   →  50, 125, 313, 781, 1953, 4883, 12207, ...
- *   精品：base 200 × 3.0^lv   →  200, 600, 1800, 5400, 16200, 48600, 145800, ...
- *   豪华：base 1000× 4.0^lv   →  1000, 4000, 16000, 64000, 256000, 1024000, ...
+ *   普通：base 50   × 2.5^lv
+ *   精品：base 200  × 3.0^lv
+ *   豪华：base 1000 × 4.0^lv
+ *   至尊：base 5000 × 4.5^lv
+ *   传说：base 20000× 5.0^lv
  * 满级（Lv.10）时：
  *   普通包稀有权重 4 → 29  → 期望从 -5 扭亏到 +2（主战场稳定赚钱）
  *   精品包稀有权重 3 → 23  → 期望从 -24 回升到 -3（接近回本仍小亏）
  *   豪华包稀有权重 3 → 7   → 期望从 -100 回升到 -50（高端永远是赌）
  * ========================== */
 const LUCKY = {
-  MAX_LEVEL: 10,
-  // 每档独立价格曲线（参考 刮个爽：低档慢涨、高档陡涨）
-  // 目标：普通 Lv.8~9 ≈ 精品 Lv.1，让玩家可以主攻普通档很久
+  MAX_LEVEL: 5,
+  // 玩家流程：先亏后赚，每升一级都能感觉到明显变化
+  // 价格曲线：每级 1.5x 平滑递增，每档 Lv.5 ≈ 下一档 Lv.1（连续衔接）
+  // 普通包：1 天可满级，精品包：1 周，豪华包：2-3 周
   COST: {
-    ordinary: { base: 20,   mult: 1.5 },  // 1:20, 5:152, 8:512, 9:768, 10:1152
-    premium:  { base: 500,  mult: 2.0 },  // 1:500, 5:8k, 8:128k, 9:256k, 10:512k
-    luxury:   { base: 2000, mult: 2.5 },  // 1:2k, 5:195k, 10:48M
+    ordinary: { base: 30,   mult: 1.5 },  // 1:30, 2:45, 3:68, 4:102, 5:153
+    premium:  { base: 150,  mult: 1.5 },  // 1:150, 2:225, ...
+    luxury:   { base: 750,  mult: 1.5 },  // 1:750, 2:1125, ...
+    epic:     { base: 3500, mult: 1.5 },  // 1:3500, 2:5250, ...
+    mythic:   { base: 15000,mult: 1.5 },  // 1:15000, 2:22500, ...
   },
-  // 每级效果（按档位独立）：对所有赚钱物品（value > price）的稀有权重 + EFFECT * 100
-  // 目标：每升 1 级赚钱物品概率 +5%~10%，玩家有显著正反馈
+  // 每级效果：所有赚钱物品（value > price）获得 +EFFECT * 100 weight
+  // 设计目标：Lv.0 50% 赚钱，Lv.5 约 85% 赚钱（每档均先亏后赚，参考 刮个爽）
   EFFECT_PER_LEVEL: {
-    ordinary: 0.08,      // 普通包：8 weight/级/物品（共 +16/级），满级 +160
-    premium:  0.05,      // 精品包：5 weight/级/物品（共 +10/级），满级 +100
-    luxury:   0.015,     // 豪华包：1.5 weight/级/物品（共 +3/级），满级 +30
+    ordinary: 0.25,     // 普通包 52% → 86%
+    premium:  0.50,     // 精品包 10% → 85%
+    luxury:   0.50,     // 豪华包 12% → 85%
+    epic:     0.50,
+    mythic:   0.50,
   },
-  // 隐藏款单独加成：每档统一 0.5%/级，满级 5%（不破坏整体期望）
-  HIDDEN_BONUS_PER_LEVEL: 0.005,
+  // 隐藏款单独加成：每档统一 4%/级，满级 5%+（参考 刮个爽 的隐藏款思路）
+  // Lv.5 普通包隐藏概率 ≈ 5.5%（让玩家能体验到）
+  HIDDEN_BONUS_PER_LEVEL: 0.04,
 };
 
 /* ========== 技能树（升级页：只保留价值加成百分比 + 自动化）==========
@@ -141,15 +188,15 @@ const SKILL = {
     name: '自动补货',
     desc: '拆完自动买同档位新快递并放到台上（默认档位可切换）',
     icon: '🔄',
-    oneTime: true, costBase: 400,
+    oneTime: true, costBase: 200,
   },
   B_autoOpen: {
     id: 'B_autoOpen',
     cat: 'B',
     name: '自动拆包器',
-    desc: '每 3 秒自动买 1 个普通包裹并拆开',
+    desc: '每 5 秒自动买 1 个普通包裹并拆开',
     icon: '🤖',
-    oneTime: true, costBase: 600,
+    oneTime: true, costBase: 350,
   },
   B_openSpeed: {
     id: 'B_openSpeed',
@@ -180,6 +227,19 @@ const SKILL = {
     oneTime: true, costBase: 10000,
     requires: 'B_autoOpen',
   },
+  B_idleStorageLv: {
+    id: 'B_idleStorageLv',
+    cat: 'B',
+    name: '扩容仓库',
+    desc: '挂机存储上限大幅提升（最高 5 级）',
+    icon: '🗃️',
+    maxLevel: 5,
+    requires: 'B_autoOpen',
+    costBase: 80, costMult: 2.8,
+    // 数值后面会跟其他技能一起调小
+    // Lv0=50, Lv1=200, Lv2=450, Lv3=800, Lv4=1250, Lv5=1800
+    effect: (lv) => ({ idleStorageMax: 50 * (lv + 1) * (lv + 1) }),
+  },
 };
 
 /* 技能 tab 配置 */
@@ -194,9 +254,9 @@ const AD = {
 };
 
 /* ========== 保底机制（让玩家上头但不动怒）========== */
+// 运气象：仅在普通包裹（10 块）生效
+// 连续 N 次没出"小玩具"或"耳机"（正收益物品），下次必出其一
+// 其他档位（精品/豪华/至尊/传说）无保底
 const PITY = {
-  // 首抽保护：前 N 次开包必出非坏物（不区分档位）
-  FIRST_OPEN_PROTECT: 3,
-  // 运气象：连续 N 次没出稀有，下次必出
-  RARE_STREAK: 5,
+  ORDINARY_PROFIT_STREAK: 5,
 };

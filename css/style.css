@@ -86,6 +86,10 @@ body { display: flex; align-items: center; justify-content: center; }
 .top-tool-btn .ic { color: var(--gold); font-size: 13px; }
 
 /* COIN PILL */
+.coin-pill-wrap {
+  position: relative;
+  display: inline-block;
+}
 .coin-pill {
   display: flex; align-items: center; gap: 5px;
   background: var(--ink); color: var(--paper);
@@ -96,6 +100,31 @@ body { display: flex; align-items: center; justify-content: center; }
 .coin-pill .c { color: var(--gold); font-size: 12px; }
 .coin-pill .num { letter-spacing: -0.3px; transition: transform 0.12s; display: inline-block; }
 .coin-pill .num.bump { transform: scale(1.35); }
+
+/* 金币扣除飘字：从右上角金币下方飘出，自动补货扣款时显示 */
+.coin-deduct {
+  position: absolute;
+  top: 100%; right: 0;
+  margin-top: 4px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #8a7a64;  /* 低饱和米灰，不抢眼 */
+  text-shadow: 0 1px 0 #fff8e7;
+  pointer-events: none;
+  white-space: nowrap;
+  opacity: 0;
+  z-index: 200;
+}
+.coin-deduct.go {
+  animation: coinDeductFloat 1.2s ease-out forwards;
+}
+@keyframes coinDeductFloat {
+  0%   { opacity: 0;   transform: translateY(4px)   scale(0.7); }
+  15%  { opacity: 1;   transform: translateY(0)     scale(1.15); }
+  25%  { opacity: 1;   transform: translateY(-2px)  scale(1); }
+  100% { opacity: 0;   transform: translateY(-22px) scale(0.95); }
+}
 
 /* ========== HOME BODY ========== */
 .home-body { flex: 1; display: flex; flex-direction: column; padding: 0 18px 16px; }
@@ -147,16 +176,16 @@ body { display: flex; align-items: center; justify-content: center; }
   transition: transform 0.3s, filter 0.3s, opacity 0.3s;
   pointer-events: none;
 }
-/* 自动拆包器 + 金额提示（从机器人头顶紧贴飘出） */
+/* 自动拆包器：单行飘字 = 物品 icon + 净差值（从机器人头顶紧贴飘出） */
 .robot-chip .auto-float-num {
   position: absolute;
   left: 50%;
   bottom: 100%;
   transform: translate(-50%, 0);
   white-space: nowrap;
-  font-family: 'Noto Serif SC', serif;
-  font-weight: 900;
-  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+  font-weight: 800;
+  font-size: 12px;
   letter-spacing: 0.5px;
   color: var(--green);
   padding: 3px 8px;
@@ -167,6 +196,15 @@ body { display: flex; align-items: center; justify-content: center; }
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.25s, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  margin-bottom: 4px;
+}
+.robot-chip .auto-float-num.minus {
+  color: #8a7a64;  /* 亏钱低调米灰（不刺眼） */
+  border-color: #8a7a64;
+  box-shadow: 1.5px 1.5px 0 #8a7a64;
+}
+.robot-chip .auto-float-num.even {
+  color: var(--ink-soft);
 }
 .robot-chip .auto-float-num.go {
   opacity: 1;
@@ -179,6 +217,56 @@ body { display: flex; align-items: center; justify-content: center; }
   opacity: 0.35;
   transition: filter 0.3s, opacity 0.3s, transform 0.3s;
   display: block;
+}
+
+/* 三帧动画容器 */
+.robot-chip .robot-anim {
+  position: relative;
+  width: 128px;
+  height: 128px;
+  flex-shrink: 0;
+  display: block;
+  overflow: hidden;  /* 配合 cover 裁掉外圈空白 */
+  border-radius: 4px;
+}
+.robot-chip .robot-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;  /* 裁掉外圈空白，让实际图像铺满容器 */
+  object-position: center;
+  opacity: 0;
+  pointer-events: none;
+  filter: grayscale(0.92);
+  transition: filter 0.3s, opacity 0.3s, transform 0.3s;
+}
+/* 解锁后：彩色 + 微抖动 */
+.robot-chip.unlocked .robot-frame {
+  filter: none;
+  transform: rotate(-4deg);
+  transition: filter 0.3s, opacity 0.3s, transform 0.3s;
+}
+/* 3 帧各占 1.67 秒，整轮 5 秒（与自动拆包器每 5 秒拆一次的节奏一致） */
+.robot-chip .robot-frame.f1 { animation: robotF1 5s infinite steps(1, end); }
+.robot-chip .robot-frame.f2 { animation: robotF2 5s infinite steps(1, end); }
+.robot-chip .robot-frame.f3 { animation: robotF3 5s infinite steps(1, end); }
+@keyframes robotF1 { 0%, 33.32% { opacity: 1; } 33.34%, 100% { opacity: 0; } }
+@keyframes robotF2 { 0%, 33.32% { opacity: 0; } 33.34%, 66.65% { opacity: 1; } 66.67%, 100% { opacity: 0; } }
+@keyframes robotF3 { 0%, 66.65% { opacity: 0; } 66.67%, 100% { opacity: 1; } }
+
+.robot-chip.locked .robot-frame {
+  animation: none !important;
+  filter: grayscale(0.85);
+}
+.robot-chip.locked .robot-frame.f1 { opacity: 0.4; }
+.robot-chip.locked .robot-frame.f2,
+.robot-chip.locked .robot-frame.f3 {
+  opacity: 0;
+  display: none;  /* 未解锁时只显示 f1，避免重影 */
+}
+.robot-chip.locked .robot-anim {
+  transform: rotate(-4deg);
 }
 .robot-chip .robot-text {
   display: none;
@@ -371,6 +459,42 @@ body { display: flex; align-items: center; justify-content: center; }
   color: var(--ink);
 }
 
+/* 至尊：深棕盒身 + 金色丝带 */
+.parcel[data-tier="epic"] .parcel-body {
+  background:
+    repeating-linear-gradient(45deg, var(--brown-deep) 0 14px, #3A2510 14px 16px),
+    var(--brown-deep);
+}
+.parcel[data-tier="epic"] .parcel-lid {
+  background: var(--brown-deep);
+}
+.parcel[data-tier="epic"] .parcel-tape-h,
+.parcel[data-tier="epic"] .parcel-tape-v {
+  background: var(--gold);
+}
+.parcel[data-tier="epic"] .parcel-tag {
+  background: var(--gold);
+  color: var(--ink);
+}
+
+/* 传说：金色盒身 + 红色丝带 */
+.parcel[data-tier="mythic"] .parcel-body {
+  background:
+    repeating-linear-gradient(45deg, var(--gold) 0 14px, #8A6A20 14px 16px),
+    var(--gold);
+}
+.parcel[data-tier="mythic"] .parcel-lid {
+  background: var(--gold);
+}
+.parcel[data-tier="mythic"] .parcel-tape-h,
+.parcel[data-tier="mythic"] .parcel-tape-v {
+  background: var(--red);
+}
+.parcel[data-tier="mythic"] .parcel-tag {
+  background: var(--red);
+  color: var(--paper);
+}
+
 /* 拆开时盒身缩放反馈 */
 .parcel[data-state="opening"] .parcel-body {
   transform: scale(1.05);
@@ -470,26 +594,84 @@ body { display: flex; align-items: center; justify-content: center; }
 .swipe-hint .arrow { display: inline-block; animation: swipe 1.4s ease-in-out infinite; }
 @keyframes swipe { 0%,100%{transform:translateX(-3px)} 50%{transform:translateX(3px)} }
 
-/* ========== AD STRIP (topbar 下方，右上角右对齐，留 12px 与 topbar 间隔) ========== */
+/* ========== AD STRIP (topbar 下方，右上角右对齐) ========== */
 .ad-strip {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  padding: 12px 18px 8px;
+  align-items: center;  /* 垂直居中：让 lucky-chip 与 ad-strip 中线对齐 */
+  position: relative;  /* 让 .ad-strip-right 用 absolute 定位 */
+  padding: 8px 18px;  /* 上下 padding */
   flex-shrink: 0;
   gap: 10px;
 }
 .ad-strip-left {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   flex: 0 0 auto;
+  position: relative;
+  z-index: 1;
 }
 .ad-strip-right {
+  position: absolute;  /* 浮在 ad-strip 右上角，不撑高 ad-strip */
+  top: 8px;           /* 与 ad-strip 顶部 padding 对齐 */
+  right: 18px;
+  display: flex;
+  flex-direction: column;  /* 三个按钮竖着堆叠一列 */
+  align-items: flex-end;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+/* ========== 自动拆包 + 自动补货 chip（幸运值下方，左对齐排列）========== */
+.auto-chips {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-  flex: 0 0 auto;
+  align-items: flex-start;
+  gap: 6px;  /* chip 之间的间距 */
+  padding: 0 18px 8px;  /* 紧贴 ad-strip 下方 */
+  flex-shrink: 0;
+}
+.auto-chips .restock-toggle {
+  margin: 0;  /* 覆盖原有的 margin-bottom */
+}
+
+/* ========== 机器人挂机存储角标（点击即领取；存储 > 0 才显示）========== */
+/* 角标基于 .robot-chip（本身就是 position:absolute）做 absolute 定位即可 */
+.storage-badge {
+  position: absolute;
+  top: -6px;        /* 固定在机器人右上角外侧（与原位置一致）*/
+  right: -6px;
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-family: 'DM Mono', monospace;
+  font-weight: 700;
+  font-size: 10px;
+  color: var(--ink);
+  box-shadow: 1.5px 1.5px 0 var(--ink);
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 5;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+.storage-badge:hover { transform: translate(0.5px, 0.5px); }
+.storage-badge:active {
+  transform: translate(1.5px, 1.5px);
+  box-shadow: 0 0 0 var(--ink);
+}
+.storage-badge .sb-num { letter-spacing: 0.3px; }
+.storage-badge.full {
+  background: var(--red);
+  border-color: var(--red);
+  color: var(--paper);
+  box-shadow: 1.5px 1.5px 0 var(--ink);
+  animation: badge-pulse 1.2s ease-in-out infinite;
+}
+@keyframes badge-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.08); }
 }
 
 /* ========== AD BUTTON (夺目版：红色实线 + 阴影，无呼吸动画) ========== */
@@ -580,49 +762,223 @@ body { display: flex; align-items: center; justify-content: center; }
   text-align: center;
 }
 
-/* ========== LUCKY 简单入口（与 stats-btn 同款结构，紧凑版） ========== */
+/* ========== 隐藏款豪华揭示动画 ========== */
+.hidden-reveal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at center, rgba(60, 40, 10, 0.85) 0%, rgba(20, 12, 4, 0.95) 100%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+.hidden-reveal.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.hr-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.hr-particles i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffd700, #b8860b);
+  box-shadow: 0 0 12px #ffd700;
+  transform: translate(-50%, -50%);
+  animation: hr-burst 1.6s ease-out forwards;
+  animation-delay: calc(var(--i) * 0.04s);
+  opacity: 0;
+}
+.hr-particles i:nth-child(4n+1) { background: radial-gradient(circle, #fff7d6, #ffd700); }
+.hr-particles i:nth-child(4n+2) { background: radial-gradient(circle, #ffeb3b, #ff9800); width: 6px; height: 6px; }
+.hr-particles i:nth-child(4n+3) { background: radial-gradient(circle, #ffe082, #f57c00); width: 4px; height: 4px; }
+.hr-particles i:nth-child(4n)   { background: radial-gradient(circle, #fff, #b8860b); width: 10px; height: 10px; }
+@keyframes hr-burst {
+  0%   { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+  60%  { opacity: 1; }
+  100% { transform: translate(calc(-50% + cos(var(--i) * 24deg) * 280px),
+                              calc(-50% + sin(var(--i) * 24deg) * 280px)) scale(1.2);
+          opacity: 0; }
+}
+
+.hr-card {
+  position: relative;
+  text-align: center;
+  padding: 32px 40px;
+  background: linear-gradient(180deg, #fff8e1 0%, #ffe082 100%);
+  border: 2px solid #b8860b;
+  border-radius: 4px;
+  box-shadow: 0 0 40px rgba(255, 215, 0, 0.6),
+              4px 4px 0 #b8860b;
+  transform: scale(0.4) rotate(-8deg);
+  opacity: 0;
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+              opacity 0.4s ease;
+  min-width: 260px;
+}
+.hidden-reveal.show .hr-card {
+  transform: scale(1) rotate(0);
+  opacity: 1;
+  animation: hr-shake 0.6s ease-in-out 0.5s;
+}
+@keyframes hr-shake {
+  0%, 100% { transform: scale(1) rotate(0); }
+  20% { transform: scale(1.05) rotate(-2deg); }
+  40% { transform: scale(0.98) rotate(1.5deg); }
+  60% { transform: scale(1.03) rotate(-1deg); }
+  80% { transform: scale(0.99) rotate(0.5deg); }
+}
+
+.hr-tag {
+  font-size: 18px;
+  font-weight: 800;
+  color: #b8860b;
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+  text-shadow: 1px 1px 0 #fff;
+}
+.hr-icon {
+  font-size: 96px;
+  line-height: 1;
+  margin: 8px 0 16px;
+  filter: drop-shadow(0 0 16px rgba(255, 215, 0, 0.8));
+  animation: hr-icon-spin 1s ease-in-out 0.3s;
+}
+@keyframes hr-icon-spin {
+  0%   { transform: scale(0) rotate(-180deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+.hr-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: #5d4037;
+  margin-bottom: 8px;
+  font-family: 'Noto Serif SC', '宋体', serif;
+}
+.hr-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: #d84315;
+  text-shadow: 2px 2px 0 #fff;
+  margin-bottom: 16px;
+  font-family: 'Noto Serif SC', '宋体', serif;
+}
+.hr-tap {
+  font-size: 12px;
+  color: #8d6e63;
+  opacity: 0.7;
+  letter-spacing: 1px;
+}
+
+/* ========== 破产弹窗 ========== */
+.bankrupt-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 12, 4, 0.55);
+  animation: bnFadeIn 0.25s ease;
+}
+@keyframes bnFadeIn { from { opacity: 0; } to { opacity: 1; } }
+.bankrupt-card {
+  width: 84%;
+  max-width: 340px;
+  padding: 22px 20px 18px;
+  text-align: center;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  box-shadow: 4px 4px 0 var(--ink);
+}
+.bankrupt-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--red);
+  margin-bottom: 10px;
+  letter-spacing: 1.5px;
+}
+.bankrupt-desc {
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.6;
+  margin-bottom: 18px;
+  opacity: 0.85;
+}
+.bankrupt-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bnk-btn {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  font-family: 'Noto Serif SC', '宋体', serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--paper);
+  background: var(--ink);
+  border: 1.5px solid var(--ink);
+  border-radius: 2px;
+  box-shadow: 2px 2px 0 var(--ink);
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+  letter-spacing: 1px;
+}
+.bnk-btn:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--ink); }
+.bnk-btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
+.bnk-btn.bnk-ad    { background: var(--red); border-color: var(--red); box-shadow: 2px 2px 0 var(--red); }
+.bnk-btn.bnk-ad:hover    { box-shadow: 3px 3px 0 var(--red); }
+.bnk-btn.bnk-reset { background: var(--paper); color: var(--ink); }
+.bnk-btn.bnk-close { background: transparent; color: var(--ink-soft); border-color: var(--ink-soft); box-shadow: 2px 2px 0 var(--ink-soft); font-weight: 500; font-size: 12px; }
+
+/* ========== LUCKY 入口（与 restock-toggle 完全同款结构：2 列，名字 + 箭头）========== */
 .lucky-chip {
   background: var(--paper);
   border: 1.5px solid var(--ink);
-  padding: 5px 8px;
+  padding: 7px 10px;
   display: inline-grid;
-  grid-template-columns: 16px auto 10px;
-  gap: 5px;
+  grid-template-columns: auto 12px;
+  gap: 8px;
   align-items: center;
+  align-self: flex-start;
   cursor: pointer;
   font-family: inherit;
   text-align: left;
   box-shadow: 2px 2px 0 var(--ink);
   transition: transform 0.1s, box-shadow 0.1s;
-  min-height: 30px;
+  min-height: 36px;
 }
 .lucky-chip:active { transform: translate(1.5px, 1.5px); box-shadow: 0.5px 0.5px 0 var(--ink); }
-.lucky-chip .lc-ic {
-  font-size: 14px;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center; justify-content: center;
-  background: transparent;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  filter: none;
-}
 .lucky-chip .lc-name {
   font-family: 'Noto Serif SC', serif;
   font-weight: 700;
   font-size: 11.5px;
   color: var(--ink);
-  letter-spacing: 0.3px;
-  line-height: 1;
+  letter-spacing: 0.5px;
+  line-height: 1.1;
   white-space: nowrap;
 }
 .lucky-chip .lc-arrow {
   font-family: 'DM Mono', monospace;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--ink-soft);
   line-height: 1;
+  text-align: center;
 }
 
 /* ========== RESET 测试按钮（放在广告按钮下方，简洁小按钮） ========== */
@@ -659,10 +1015,10 @@ body { display: flex; align-items: center; justify-content: center; }
 /* ========== 续包档位切换 chip（自动补货解锁后显示）========== */
 .restock-toggle {
   background: var(--paper);
-  border: 1.5px solid var(--green);
+  border: 1.5px solid var(--ink);  /* 统一黑色边框，与 lucky-chip 一致 */
   padding: 7px 10px;
   display: inline-grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 1fr auto;
   gap: 8px;
   align-items: center;
   align-self: flex-start;
@@ -670,19 +1026,13 @@ body { display: flex; align-items: center; justify-content: center; }
   cursor: pointer;
   font-family: inherit;
   text-align: left;
-  box-shadow: 2px 2px 0 var(--green);
+  box-shadow: 2px 2px 0 var(--ink);  /* 统一黑色阴影 */
   transition: transform 0.1s, box-shadow 0.1s;
   max-width: 100%;
   min-height: 36px;
 }
-.restock-toggle:active { transform: translate(1.5px, 1.5px); box-shadow: 0.5px 0.5px 0 var(--green); }
+.restock-toggle:active { transform: translate(1.5px, 1.5px); box-shadow: 0.5px 0.5px 0 var(--ink); }
 .restock-toggle[hidden] { display: none; }
-.restock-toggle .rt-icon {
-  font-size: 16px;
-  line-height: 1;
-  animation: rtSpin 3s linear infinite;
-  display: inline-block;
-}
 .restock-toggle .rt-body {
   display: flex; flex-direction: column;
   gap: 1px;
@@ -695,20 +1045,137 @@ body { display: flex; align-items: center; justify-content: center; }
 }
 .restock-toggle .rt-tier {
   font-family: 'DM Mono', monospace; font-size: 9px;
-  color: var(--green); font-weight: 700; letter-spacing: 0.3px;
+  color: var(--ink-soft); font-weight: 700; letter-spacing: 0.3px;  /* 统一为次要文字色 */
   white-space: nowrap; line-height: 1.1;
   transition: color 0.2s;
 }
 .restock-toggle .rt-tier.changed { color: var(--red); }
 .restock-toggle .rt-arrow {
   font-family: 'DM Mono', monospace; font-size: 14px;
-  color: var(--green); font-weight: 700;
+  color: var(--ink-soft); font-weight: 700;  /* 统一为次要文字色 */
   line-height: 1;
   text-align: center;
 }
-@keyframes rtSpin {
-  0%   { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+
+/* ========== 自动补货档位选择弹窗 ========== */
+.restock-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.restock-card {
+  background: var(--paper-light);
+  border: 2px solid var(--ink);
+  padding: 10px 11px 11px;
+  box-shadow: 3px 3px 0 var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.08s, box-shadow 0.08s;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  width: 100%;
+}
+.restock-card:active { transform: translate(1.5px, 1.5px); box-shadow: 1px 1px 0 var(--ink); }
+.restock-card.premium { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.restock-card.luxury { background: var(--green); color: var(--paper); border-color: var(--ink); }
+.restock-card.epic { background: var(--brown-deep); color: var(--paper); border-color: var(--ink); }
+.restock-card.mythic { background: var(--gold); color: var(--ink); border-color: var(--ink); }
+.restock-card.selected {
+  background: var(--paper);
+  border-color: var(--green);
+  box-shadow: 3px 3px 0 var(--green);
+}
+.restock-card.selected.premium { background: var(--ink); border-color: var(--paper); box-shadow: 3px 3px 0 var(--paper); }
+.restock-card.selected.luxury { background: var(--green); border-color: var(--paper); box-shadow: 3px 3px 0 var(--paper); }
+.restock-card.selected.epic { background: var(--brown-deep); border-color: var(--paper); box-shadow: 3px 3px 0 var(--paper); }
+.restock-card.selected.mythic { background: var(--gold); border-color: var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+.restock-card .rc-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.restock-card .rc-head-l {
+  display: flex; align-items: center; gap: 8px;
+}
+.restock-card .rc-ic {
+  font-size: 18px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px;
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
+  border-radius: 4px;
+}
+.restock-card.premium .rc-ic,
+.restock-card.luxury .rc-ic,
+.restock-card.epic .rc-ic { background: var(--paper-light); }
+.restock-card.mythic .rc-ic { background: var(--paper); }
+.restock-card .rc-name {
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 800; font-size: 13px;
+  letter-spacing: 0.5px;
+  color: var(--ink);
+}
+.restock-card.premium .rc-name,
+.restock-card.luxury .rc-name,
+.restock-card.epic .rc-name { color: var(--paper); }
+.restock-card.mythic .rc-name { color: var(--ink); }
+.restock-card .rc-price {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-soft);
+  letter-spacing: 0.3px;
+}
+.restock-card.premium .rc-price,
+.restock-card.luxury .rc-price,
+.restock-card.epic .rc-price { color: var(--paper); opacity: 0.95; }
+.restock-card.mythic .rc-price { color: var(--ink-soft); opacity: 0.9; }
+.restock-card .rc-check {
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 800; font-size: 11px;
+  color: var(--green);
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.restock-card.premium .rc-check,
+.restock-card.luxury .rc-check,
+.restock-card.epic .rc-check { color: var(--paper); }
+.restock-card.mythic .rc-check { color: var(--ink); }
+.restock-card .rc-ev {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-soft);
+  letter-spacing: 0.3px;
+  display: flex; justify-content: space-between; gap: 8px;
+}
+.restock-card .rc-ev .pos { color: var(--green); font-weight: 700; }
+.restock-card .rc-ev .neg { color: var(--red); font-weight: 700; }
+.restock-card.premium .rc-ev,
+.restock-card.luxury .rc-ev,
+.restock-card.epic .rc-ev { color: var(--paper-dark); opacity: 0.9; }
+.restock-card.mythic .rc-ev { color: var(--ink-soft); opacity: 0.9; }
+/* 档位卡片：锁定（未解锁前置技能时不可选）*/
+.restock-card.locked {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+  cursor: not-allowed;
+  box-shadow: 2px 2px 0 var(--ink-soft);
+}
+.restock-card.locked:active { transform: none; }
+.restock-card .rc-lock-row {
+  display: flex; align-items: center; justify-content: flex-end;
+  margin-top: 2px;
+}
+.restock-card .rc-lock {
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 700; font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--ink-soft);
+  background: var(--paper);
+  border: 1px dashed var(--ink-soft);
+  padding: 1px 6px;
+  border-radius: 2px;
 }
 
 /* ========== MODAL（属性面板） ========== */
@@ -717,9 +1184,9 @@ body { display: flex; align-items: center; justify-content: center; }
   background: rgba(42, 31, 24, 0.55);
   z-index: 200;
   display: none;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding: 60px 16px 16px;
+  padding: 16px;
   animation: fadeIn 0.2s ease;
 }
 .modal-mask.show { display: flex; }
@@ -793,6 +1260,28 @@ body { display: flex; align-items: center; justify-content: center; }
   filter: drop-shadow(1px 1px 0 rgba(0,0,0,0.15));
 }
 
+/* 弹窗标题旁的预览信息（如"价值×1.05 · 自动拆4.5s"）*/
+.modal-title .modal-preview {
+  margin-left: 10px;
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  vertical-align: middle;
+}
+.modal-title .modal-preview .mp-chip {
+  display: inline-block;
+  font-family: 'DM Mono', monospace;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  color: var(--ink-soft);
+  padding: 1px 6px;
+  background: var(--paper);
+  border: 1px dashed var(--ink-soft);
+  border-radius: 2px;
+  line-height: 1.4;
+}
+
 /* ========== 幸运值弹窗内：档位卡片 ========== */
 .lucky-cards {
   display: flex;
@@ -800,22 +1289,34 @@ body { display: flex; align-items: center; justify-content: center; }
   gap: 10px;
 }
 .lucky-card {
-  background: var(--paper-light);
-  border: 2px solid var(--ink);
-  padding: 10px 11px 11px;
-  box-shadow: 3px 3px 0 var(--ink);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  position: relative;
+  /* 复用 .restock-card 卡片样式（视觉统一），此处只放 lucky 专属的子元素样式 */
+  gap: 6px;
+  cursor: default;
 }
-.lucky-card.premium { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-.lucky-card.luxury { background: var(--green); color: var(--paper); border-color: var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+.lucky-card:active { transform: none; box-shadow: 3px 3px 0 var(--ink); }
+/* 满级：保留各档位背景色（不覆盖），只用绿色边框 + 绿色阴影 + 右上角"已满级"角标做提示 */
 .lucky-card.maxed {
-  background: var(--paper);
   border-color: var(--green);
   box-shadow: 3px 3px 0 var(--green);
 }
+.lucky-card.maxed::after {
+  content: 'MAX';
+  position: absolute;
+  top: -8px; right: 8px;
+  background: var(--green);
+  color: var(--paper);
+  border: 1.5px solid var(--ink);
+  padding: 1px 7px 2px;
+  font-family: 'Fraunces', serif;
+  font-weight: 800;
+  font-size: 9px;
+  letter-spacing: 1px;
+  box-shadow: 1.5px 1.5px 0 var(--ink);
+  pointer-events: none;
+  z-index: 2;
+}
+/* 满级时子元素颜色：让档位色规则（.lucky-card.{tier} .lc-*）继续生效，不覆盖 */
+.lucky-card.maxed .lc-lv-num { color: var(--green); }
 
 .lc-head {
   display: flex; align-items: center; justify-content: space-between;
@@ -832,9 +1333,11 @@ body { display: flex; align-items: center; justify-content: center; }
   border-radius: 4px;
 }
 .lucky-card.premium .lc-ic,
-.lucky-card.luxury .lc-ic {
+.lucky-card.luxury .lc-ic,
+.lucky-card.epic .lc-ic {
   background: var(--paper-light);
 }
+.lucky-card.mythic .lc-ic { background: var(--paper); }
 .lc-name {
   font-family: 'Noto Serif SC', serif;
   font-weight: 800;
@@ -843,7 +1346,9 @@ body { display: flex; align-items: center; justify-content: center; }
   color: var(--ink);
 }
 .lucky-card.premium .lc-name,
-.lucky-card.luxury .lc-name { color: var(--paper); }
+.lucky-card.luxury .lc-name,
+.lucky-card.epic .lc-name { color: var(--paper); }
+.lucky-card.mythic .lc-name { color: var(--ink); }
 .lc-price {
   font-family: 'DM Mono', monospace;
   font-size: 10px;
@@ -851,7 +1356,9 @@ body { display: flex; align-items: center; justify-content: center; }
   letter-spacing: 0.3px;
 }
 .lucky-card.premium .lc-price,
-.lucky-card.luxury .lc-price { color: var(--paper-dark); opacity: 0.85; }
+.lucky-card.luxury .lc-price,
+.lucky-card.epic .lc-price { color: var(--paper); opacity: 0.95; }
+.lucky-card.mythic .lc-price { color: var(--ink-soft); opacity: 0.9; }
 
 /* 等级条 */
 .lc-lvrow {
@@ -867,7 +1374,9 @@ body { display: flex; align-items: center; justify-content: center; }
   min-width: 56px;
 }
 .lucky-card.premium .lc-lv-label,
-.lucky-card.luxury .lc-lv-label { color: var(--paper-dark); }
+.lucky-card.luxury .lc-lv-label,
+.lucky-card.epic .lc-lv-label { color: var(--paper); opacity: 0.9; }
+.lucky-card.mythic .lc-lv-label { color: var(--ink-soft); }
 .lc-lv-track {
   flex: 1; height: 6px;
   background: var(--paper-dark);
@@ -899,7 +1408,9 @@ body { display: flex; align-items: center; justify-content: center; }
   border-top: 1.5px dashed var(--ink-soft);
 }
 .lucky-card.premium .lc-info,
-.lucky-card.luxury .lc-info { border-top-color: rgba(244,232,208,0.3); }
+.lucky-card.luxury .lc-info,
+.lucky-card.epic .lc-info { border-top-color: rgba(244,232,208,0.3); }
+.lucky-card.mythic .lc-info { border-top-color: rgba(58,40,23,0.25); }
 .lc-info-block {
   display: flex; flex-direction: column;
   gap: 1px;
@@ -913,7 +1424,9 @@ body { display: flex; align-items: center; justify-content: center; }
   letter-spacing: 1px;
 }
 .lucky-card.premium .lc-info-label,
-.lucky-card.luxury .lc-info-label { color: var(--paper-dark); }
+.lucky-card.luxury .lc-info-label,
+.lucky-card.epic .lc-info-label { color: var(--paper); opacity: 0.85; }
+.lucky-card.mythic .lc-info-label { color: var(--ink-soft); }
 .lc-info-val {
   font-family: 'DM Mono', monospace;
   font-size: 13px;
@@ -923,13 +1436,17 @@ body { display: flex; align-items: center; justify-content: center; }
   line-height: 1.1;
 }
 .lucky-card.premium .lc-info-val,
-.lucky-card.luxury .lc-info-val { color: var(--paper); }
+.lucky-card.luxury .lc-info-val,
+.lucky-card.epic .lc-info-val { color: var(--paper); }
+.lucky-card.mythic .lc-info-val { color: var(--ink); }
 .lc-info-val.pos { color: var(--green); }
 .lucky-card.premium .lc-info-val.pos,
-.lucky-card.luxury .lc-info-val.pos { color: #A5D6A7; }
+.lucky-card.luxury .lc-info-val.pos,
+.lucky-card.epic .lc-info-val.pos { color: #A5D6A7; }
 .lc-info-val.neg { color: var(--red); }
 .lucky-card.premium .lc-info-val.neg,
-.lucky-card.luxury .lc-info-val.neg { color: #F4A09A; }
+.lucky-card.luxury .lc-info-val.neg,
+.lucky-card.epic .lc-info-val.neg { color: #F4A09A; }
 
 /* 升级按钮 */
 .lc-up-btn {
@@ -1138,6 +1655,8 @@ body { display: flex; align-items: center; justify-content: center; }
 }
 .buy-card.premium { background: var(--ink); color: var(--paper); }
 .buy-card.luxury { background: var(--green); color: var(--paper); border-color: var(--ink); }
+.buy-card.epic { background: var(--brown-deep); color: var(--paper); border-color: var(--ink); }
+.buy-card.mythic { background: var(--gold); color: var(--ink); border-color: var(--ink); }
 .buy-card .icon { font-size: 24px; margin-bottom: 1px; display: block; line-height: 1; }
 .buy-card .tier {
   font-family: 'DM Mono', monospace; font-size: 7.5px;

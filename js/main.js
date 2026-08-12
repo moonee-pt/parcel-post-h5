@@ -18,13 +18,23 @@ const State = {
   autoSellUnlocked: true, // 默认开启（硬约束）
   autoOpenTimer: null,
   autoBulkUnlocked: false,
+  ordNoProfitStreak: 0,   // 普通包裹连续没出"小玩具/耳机"的次数（5 次保底）
   autoBulkTier: 'ordinary',
+  // 自动拆包器（机器人）档位
+  autoOpenTier: 'ordinary',  // 玩家点 chip 切换
   // 自动补货
   autoRestockUnlocked: false,
   autoRestockTier: 'ordinary',  // 续包档位（默认普通，玩家手动买过的最后一个档）
+  nextPending: null,            // 预备队：自动补货的"下一个"快递，玩家拆当前时已买好
+  // 机器人挂机存储（拆出来先入存储，用户点领取才入 coin）
+  idleStorage: 0,           // 当前暂存金币
+  idleStorageMax: 50,       // 上限（基础 50；技能 B_idleStorageLv 提升）
+  lastStorageFullToast: 0,  // 上次弹"存储已满"气泡的时间（防刷屏）
   // 保底机制
-  firstOpenCount: 0,      // 已开包次数（首抽保护用）
-  noRareStreak: 0,        // 连续没出稀有的次数（运气象用）
+  firstOpenCount: 0,      // 保留兼容旧存档（已废弃）
+  noRareStreak: 0,        // 保留兼容旧存档（已废弃）
+  // 保底机制：只有普通包裹有"5 次没出正收益 → 必出"
+  ordNoProfitStreak: 0,
 };
 
 /* ---------- 存档 ---------- */
@@ -36,12 +46,14 @@ function save() {
       luckyLv: State.luckyLv,
       autoOpenUnlocked: State.autoOpenUnlocked,
       autoOpenSpeedLv: State.autoOpenSpeedLv,
+      autoOpenTier: State.autoOpenTier,
       autoSellUnlocked: State.autoSellUnlocked,
       autoBulkUnlocked: State.autoBulkUnlocked,
       autoRestockUnlocked: State.autoRestockUnlocked,
       autoRestockTier: State.autoRestockTier,
-      firstOpenCount: State.firstOpenCount,
-      noRareStreak: State.noRareStreak,
+      idleStorage: State.idleStorage,
+      idleStorageMax: State.idleStorageMax,
+      ordNoProfitStreak: State.ordNoProfitStreak,
     };
     localStorage.setItem(CONFIG.SAVE_KEY, JSON.stringify(data));
   } catch (e) {
@@ -64,12 +76,14 @@ function load() {
     }
     if (typeof data.autoOpenUnlocked === 'boolean') State.autoOpenUnlocked = data.autoOpenUnlocked;
     if (typeof data.autoOpenSpeedLv === 'number') State.autoOpenSpeedLv = data.autoOpenSpeedLv;
+    if (typeof data.autoOpenTier === 'string') State.autoOpenTier = data.autoOpenTier;
     if (typeof data.autoSellUnlocked === 'boolean') State.autoSellUnlocked = data.autoSellUnlocked;
     if (typeof data.autoBulkUnlocked === 'boolean') State.autoBulkUnlocked = data.autoBulkUnlocked;
     if (typeof data.autoRestockUnlocked === 'boolean') State.autoRestockUnlocked = data.autoRestockUnlocked;
     if (typeof data.autoRestockTier === 'string') State.autoRestockTier = data.autoRestockTier;
-    if (typeof data.firstOpenCount === 'number') State.firstOpenCount = data.firstOpenCount;
-    if (typeof data.noRareStreak === 'number') State.noRareStreak = data.noRareStreak;
+    if (typeof data.idleStorage === 'number') State.idleStorage = data.idleStorage;
+    if (typeof data.idleStorageMax === 'number') State.idleStorageMax = data.idleStorageMax;
+    if (typeof data.ordNoProfitStreak === 'number') State.ordNoProfitStreak = data.ordNoProfitStreak;
   } catch (e) {
     console.warn('读档失败', e);
   }
@@ -189,31 +203,28 @@ function luckyWeightBonus(tierId, item) {
 
 /* ============================================================
  * 核心：rollItem — 抽物品（含保底）
+ * 保底规则：只有普通包裹（10 块）有保底——连续 5 次没出"小玩具/耳机"（正收益物品），下次必出其一
+ * 其他档位（精品/豪华/至尊/传说）无保底，靠玩家幸运值升级和自身财商
  * ============================================================ */
 function rollItem(tierId) {
   const tier = TIER[tierId];
   const fx = getEffects();
   const items = tier.items.map(it => {
     let w = it.weight;
-    // 幸运值：所有赚钱物品（value > price）权重都增加，亏钱物品相对概率下降
     w = w + luckyWeightBonus(tierId, it);
     return { ...it, _w: w };
   });
-  const total = items.reduce((s, it) => s + it._w, 0);
 
-  // === 保底判定 ===
-  const needFirstProtect = State.firstOpenCount < PITY.FIRST_OPEN_PROTECT;
-  const needRarePity = State.noRareStreak >= PITY.RARE_STREAK;
-
-  // 决定候选池
+  // === 普通包裹保底判定 ===
+  // "正收益物品" = 小玩具（12）和耳机（40），这两个的 value > 普通包裹价格 10
   let candidates = items;
-  if (needFirstProtect) {
-    candidates = items.filter(it => !it.bad);
-  }
-  if (needRarePity) {
-    // 运气象触发：只在确实存在稀有时生效
-    const rares = items.filter(it => it.rare);
-    if (rares.length > 0) candidates = rares;
+  let isOrdinaryPity = false;
+  if (tierId === 'ordinary') {
+    const profitItems = items.filter(it => it.name === '小玩具' || it.name === '耳机');
+    if (profitItems.length > 0 && (State.ordNoProfitStreak || 0) >= PITY.ORDINARY_PROFIT_STREAK) {
+      candidates = profitItems;
+      isOrdinaryPity = true;
+    }
   }
   if (candidates.length === 0) candidates = items;  // 极端兜底
 
@@ -228,12 +239,10 @@ function rollItem(tierId) {
   // 物品价值（仅由 A_value 技能影响）
   const value = Math.floor(picked.value * fx.valueMult);
 
-  // === 更新保底计数 ===
-  State.firstOpenCount += 1;
-  if (picked.rare) {
-    State.noRareStreak = 0;
-  } else {
-    State.noRareStreak += 1;
+  // === 更新保底计数（只对普通包裹维护）===
+  if (tierId === 'ordinary') {
+    const isProfit = picked.name === '小玩具' || picked.name === '耳机';
+    State.ordNoProfitStreak = isProfit ? 0 : ((State.ordNoProfitStreak || 0) + 1);
   }
   save();
 
@@ -243,9 +252,7 @@ function rollItem(tierId) {
     isCrit: false,
     isBad: !!picked.bad,
     isHidden: !!picked.hidden,
-    isFirstProtect: needFirstProtect,
-    isRarePity: needRarePity && !!picked.rare,
-    noRareStreakNext: State.noRareStreak,
+    isOrdinaryPity,
   };
 }
 
@@ -265,29 +272,31 @@ function buyParcel(tierId) {
 /* ---------- 自动补货（拆完 → 自动买同档位 → 放到台上）---------- */
 function tryAutoRestock() {
   if (!State.autoRestockUnlocked) {
-    console.log('[自动补货] 未解锁');
     return { ok: false, reason: 'not-unlocked' };
-  }
-  if (State.pending) {
-    console.log('[自动补货] 已有快递在台上');
-    return { ok: false, reason: 'has-pending' };
   }
   const tier = TIER[State.autoRestockTier];
   if (State.coin < tier.price) {
-    console.log('[自动补货] 金币不足:', State.coin, '/', tier.price);
     return { ok: false, reason: 'no-coin' };
   }
+  // 如果台上已有快递 → 准备到 nextPending 预备队（仅逻辑预存，无视觉）
+  if (State.pending) {
+    if (State.nextPending) {
+      return { ok: false, reason: 'has-next' };
+    }
+    State.coin -= tier.price;
+    State.nextPending = { tierId: State.autoRestockTier, ts: Date.now() };
+    save();
+    return { ok: true, where: 'next' };
+  }
+  // 台上空 → 直接买并放到台上
   const r = buyParcel(State.autoRestockTier);
   if (!r.ok) {
-    console.log('[自动补货] buyParcel 失败:', r.msg);
     return { ok: false, reason: 'buy-failed', msg: r.msg };
   }
   if (typeof UI !== 'undefined' && UI.showParcel) {
     UI.showParcel(State.autoRestockTier);
-    console.log('[自动补货] 成功放入台上, tier=', State.autoRestockTier);
-    return { ok: true };
   }
-  return { ok: false, reason: 'no-ui' };
+  return { ok: true, where: 'main' };
 }
 
 /* ---------- 划封带交互 ---------- */
@@ -357,31 +366,32 @@ function openParcel() {
   const item = rollItem(State.pending.tierId);
   // 触发 UI 动画（UI 层）
   if (typeof UI !== 'undefined' && UI.onItemRolled) UI.onItemRolled(item, State.pending.tierId);
-  // 物品飞完后清空快递盒（让玩家看到"开盒了"的状态）
+  // ★ 关键：物品一开始飞，就立即准备下一个快递（预备队），并立刻扣钱
+  if (State.autoRestockUnlocked) {
+    const r = tryAutoRestock();
+    if (r && r.ok && r.where === 'next' && typeof UI !== 'undefined') {
+      // 同步刷新金币显示 + 在金币 pill 下方飘 "-X ◉" 提示
+      UI.refreshCoin();
+      UI.refreshBuyRow();
+      UI.showCoinDeduct(TIER[State.autoRestockTier].price);
+    }
+  }
+  // 物品飞完后清空快递盒
   setTimeout(() => {
     State.pending = null;
     save();
-    if (typeof UI !== 'undefined' && UI.onParcelCleared) UI.onParcelCleared();
-    // 清空后再触发自动补货（此时 pending 已 null，新快递可以放到台上）
-    if (State.autoRestockUnlocked) {
-      setTimeout(() => {
-        const r = tryAutoRestock();
-        if (typeof UI !== 'undefined' && UI.spawnPityTag) {
-          if (r && r.ok) {
-            UI.spawnPityTag('restock');
-          } else if (r && r.reason) {
-            // 失败时飘诊断横幅，告诉用户原因
-            const reasonText = {
-              'not-unlocked': '🔒 未解锁',
-              'has-pending': '⏳ 已有快递',
-              'no-coin': '💰 金币不足',
-              'buy-failed': '❌ ' + (r.msg || '购买失败'),
-              'no-ui': '❌ UI 未就绪',
-            }[r.reason] || '❌ 失败';
-            UI.spawnPityTag('restock-fail', reasonText);
-          }
-        }
-      }, 200);
+    // ★ 如果预备队里有快递，无缝换到主位（玩家根本看不到空台）
+    if (State.nextPending) {
+      State.pending = State.nextPending;
+      State.nextPending = null;
+      save();
+      if (typeof UI !== 'undefined') {
+        UI.swapToNextParcel();
+        UI.refreshCoin();
+        UI.refreshBuyRow();
+      }
+    } else {
+      if (typeof UI !== 'undefined' && UI.onParcelCleared) UI.onParcelCleared();
     }
   }, 1800);
 }
@@ -409,7 +419,20 @@ function upgradeSkill(id) {
   }
   if (id === 'B_autoSell') State.autoSellUnlocked = true;
   if (id === 'B_bulkBuy') State.autoBulkUnlocked = true;
-  if (id === 'B_restock') State.autoRestockUnlocked = true;
+  if (id === 'B_idleStorageLv') {
+    // 扩容仓库：按等级动态计算上限（数值后面会一起调小）
+    const lv = getSkillLv(id);
+    const def = SKILL[id];
+    const fx = def && def.effect ? def.effect(lv) : null;
+    if (fx && typeof fx.idleStorageMax === 'number') {
+      State.idleStorageMax = fx.idleStorageMax;
+    }
+  }
+  if (id === 'B_restock') {
+    State.autoRestockUnlocked = true;
+    // 购买后立即尝试准备一个（如果台上空→放台上；台上有→放预备队）
+    tryAutoRestock();
+  }
   save();
   return { ok: true };
 }
@@ -418,7 +441,7 @@ function upgradeSkill(id) {
 function getAutoInterval() {
   if (!State.autoOpenUnlocked) return 0;
   const fx = getEffects();
-  return Math.max(0.5, 3 - fx.autoIntervalDiscount);
+  return Math.max(0.5, 5 - fx.autoIntervalDiscount);
 }
 
 function startAutoOpen() {
@@ -445,21 +468,61 @@ function stopAutoOpen() {
 }
 
 function autoOpenTick() {
-  // 如果有待拆的快递，跳过这一拍
-  if (State.pending) return;
-  // 选档位
-  const tierId = State.autoBulkUnlocked ? State.autoBulkTier : 'ordinary';
+  // 机器人独立买+拆，不依赖 stage 上的 pending
+  // 档位优先：未解锁批量采购 → 只允许普通；解锁后用玩家选的档位
+  const tierId = State.autoBulkUnlocked
+    ? State.autoOpenTier
+    : 'ordinary';
   const tier = TIER[tierId];
-  if (State.coin < tier.price) return; // 金币不够静默跳过
-  State.coin -= tier.price;
-  // 直接滚物品并入账
+  const cost = tier.price;
+
+  // === 前置检查（按顺序短路）===
+  // 1) 买不起 → 静默 return（与原逻辑一致）
+  if (State.coin < cost) return;
+  // 2) 暂存金币为负数（"总金币负数也暂停"；0 起步允许）
+  if (State.idleStorage < 0) return;
+  // 3) 存储已满 → 暂停拆包 + 10s 弹一次气泡
+  if (State.idleStorage >= State.idleStorageMax) {
+    const now = Date.now();
+    if (now - State.lastStorageFullToast > 10000) {
+      State.lastStorageFullToast = now;
+      if (typeof UI !== 'undefined' && UI.spawnStorageFullToast) {
+        UI.spawnStorageFullToast();
+      }
+    }
+    return;
+  }
+  // 4) 净亏会让存储变负 → 暂停（防御性，保证 idleStorage >= 0）
+  // 预滚一次比较麻烦，直接扣 cost + roll 后限制
+  State.coin -= cost;
   const item = rollItem(tierId);
   const gain = item.finalValue;
-  State.coin += gain;
+  const net = gain - cost;
+  // 净亏损会让存储变负 → 回滚 coin（不退物品）
+  if (State.idleStorage + net < 0) {
+    State.coin += cost;  // 退还成本
+    return;
+  }
+  // 正常入存储（防御性限制到 [0, max]）
+  State.idleStorage = Math.max(0, Math.min(State.idleStorage + net, State.idleStorageMax));
   save();
   if (typeof UI !== 'undefined' && UI.onAutoOpen) {
-    UI.onAutoOpen(tierId, item, gain);
+    UI.onAutoOpen(tierId, item, cost, gain, net);
   }
+}
+
+/* ---------- 领取暂存金币（机器人挂机存储）---------- */
+function collectIdleStorage() {
+  if (State.idleStorage <= 0) return { ok: false, msg: '存储为空' };
+  const amount = State.idleStorage;
+  State.coin += amount;
+  State.idleStorage = 0;
+  save();
+  if (typeof UI !== 'undefined') {
+    if (UI.refreshCoin) UI.refreshCoin();
+    if (UI.renderStorageBadge) UI.renderStorageBadge();
+  }
+  return { ok: true, amount };
 }
 
 /* ---------- 当前属性（用于 modal 展示）---------- */
@@ -539,5 +602,14 @@ function initState() {
   load();
   // 自动售卖站默认开启（硬约束）
   State.autoSellUnlocked = true;
+  // 同步挂机存储上限（按当前技能等级重算，覆盖存档中的旧值）
+  const lv = getSkillLv('B_idleStorageLv');
+  const def = SKILL['B_idleStorageLv'];
+  if (def && def.effect) {
+    const fx = def.effect(lv);
+    if (fx && typeof fx.idleStorageMax === 'number') {
+      State.idleStorageMax = fx.idleStorageMax;
+    }
+  }
   if (State.autoOpenUnlocked) startAutoOpen();
 }

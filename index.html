@@ -31,9 +31,13 @@
         <span class="ic">✦</span><span>升级</span>
       </button>
       <div class="tb-right">
-        <div class="coin-pill">
-          <span class="c">◉</span>
-          <span class="num" id="coinDisplay">0</span>
+        <div class="coin-pill-wrap">
+          <div class="coin-pill">
+            <span class="c">◉</span>
+            <span class="num" id="coinDisplay">0</span>
+          </div>
+          <!-- 金币扣除飘字：自动补货扣下一个时显示 -->
+          <div class="coin-deduct" id="coinDeduct"></div>
         </div>
       </div>
     </div>
@@ -42,7 +46,6 @@
     <div class="ad-strip">
       <div class="ad-strip-left">
         <button class="lucky-chip" id="btnLucky">
-          <span class="lc-ic">🍀</span>
           <span class="lc-name">幸运值</span>
           <span class="lc-arrow">›</span>
         </button>
@@ -59,15 +62,45 @@
           <span class="rb-ic">⟳</span>
           <span class="rb-name">重置</span>
         </button>
+        <button class="reset-btn" id="btnTestHidden" title="测试开出隐藏款动画" style="margin-top:6px">
+          <span class="rb-ic">👑</span>
+          <span class="rb-name">测隐藏</span>
+        </button>
       </div>
+    </div>
+
+    <!-- 自动拆包 + 自动补货 chip（幸运值下方，解锁后才显示）-->
+    <div class="auto-chips">
+      <button class="restock-toggle autoopen-toggle" id="autoOpenToggle" hidden>
+        <span class="rt-body">
+          <span class="rt-label">自动拆包</span>
+          <span class="rt-tier" id="autoOpenTierLabel">普通</span>
+        </span>
+        <span class="rt-arrow">›</span>
+      </button>
+      <button class="restock-toggle" id="restockToggle" hidden>
+        <span class="rt-body">
+          <span class="rt-label">自动补货</span>
+          <span class="rt-tier" id="restockTierLabel">普通</span>
+        </span>
+        <span class="rt-arrow">›</span>
+      </button>
     </div>
 
     <div class="home-body">
       <!-- PARCEL HERO -->
       <div class="parcel-area">
         <div class="robot-chip locked" id="robotChip">
-          <img class="robot-icon" src="assets/images/robot.png" alt="robot" onerror="this.style.opacity=0.4;this.style.filter='grayscale(0.85)'">
+          <div class="robot-anim" id="robotAnim">
+            <img class="robot-frame f1" src="assets/images/robot_1.png" alt="" onerror="this.replaceWith(document.createTextNode('🤖'))">
+            <img class="robot-frame f2" src="assets/images/robot_2.png" alt="" onerror="this.remove()">
+            <img class="robot-frame f3" src="assets/images/robot_3.png" alt="" onerror="this.remove()">
+          </div>
           <div class="robot-text">未解锁</div>
+          <!-- 机器人挂机存储角标（点击即领取；存储 > 0 才显示）-->
+          <div class="storage-badge" id="storageBadge" hidden>
+            <span class="sb-num">0/50</span>
+          </div>
         </div>
 
         <div class="parcel-stage" id="parcelStage">
@@ -112,21 +145,10 @@
         <span class="arrow">←</span> SLIDE TO OPEN <span class="arrow">→</span>
       </div>
 
-      <!-- 自动补货档位切换 chip（仅在解锁后显示）-->
-      <button class="restock-toggle" id="restockToggle" hidden>
-        <span class="rt-icon">🔄</span>
-        <span class="rt-body">
-          <span class="rt-label">下次续包</span>
-          <span class="rt-tier" id="restockTierLabel">📦 普通</span>
-        </span>
-        <span class="rt-arrow">‹</span>
-      </button>
-
-      <!-- STATS 入口 -->
+      <!-- STATS 入口（只显示"概率"二字，详细预览移到弹窗标题旁） -->
       <button class="stats-btn" id="btnStats">
         <span class="st-body">
-          <span class="st-t1">属性</span>
-          <span class="st-t2" id="statsPreview">价值×1.0</span>
+          <span class="st-t1">概率</span>
         </span>
         <span class="st-arrow">›</span>
       </button>
@@ -162,11 +184,14 @@
     </div>
   </div>
 
-  <!-- ========== MODAL: 当前属性面板 ========== -->
+  <!-- ========== MODAL: 概率面板 ========== -->
   <div class="modal-mask" id="statsModal">
     <div class="modal-card">
       <div class="modal-head">
-        <div class="modal-title">属性</div>
+        <div class="modal-title">
+          概率
+          <span class="modal-preview" id="statsPreviewInModal"></span>
+        </div>
         <button class="modal-close" id="btnStatsClose">×</button>
       </div>
       <div class="modal-body" id="statsModalBody">
@@ -187,6 +212,22 @@
       </div>
       <div class="modal-foot">
         <div class="mf-hint">优先升级低档快递回本，再投高档搏稀物</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== MODAL: 档位选择器（自动补货/自动拆包 共用同一个弹窗）========== -->
+  <div class="modal-mask" id="tierPickerModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="modal-title" id="tierPickerTitle">档位</div>
+        <button class="modal-close" id="btnTierPickerClose">×</button>
+      </div>
+      <div class="modal-body" id="tierPickerBody">
+        <!-- 由 JS 渲染 3 张档位卡片 -->
+      </div>
+      <div class="modal-foot">
+        <div class="mf-hint" id="tierPickerHint">选一个档位</div>
       </div>
     </div>
   </div>
