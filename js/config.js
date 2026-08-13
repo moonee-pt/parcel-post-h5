@@ -293,6 +293,7 @@ const SKILL = {
   },
   B_autoOpen: {
     id: 'B_autoOpen',
+    cat: 'B',
     name: '自动拆包机器人',
     desc: '每 5 秒自动买 1 个普通盲盒并拆开（后续用「机器人分拣强化」扩展档位）',
     icon: '🤖',
@@ -364,6 +365,144 @@ const AD = {
 // 其他档位（精品/豪华/至尊/传说）无保底
 const PITY = {
   ORDINARY_PROFIT_STREAK: 5,
+};
+
+/* ========== 技能卡抽取（后期系统）==========
+ * 设计原则：
+ *   1) 9 张卡 / 4 档稀有度 / 单价 2000 金币（后期专享）
+ *   2) 副作用：仅"罕见"档限时 3 分钟（其他都 10 分钟），不叠别的负面
+ *   3) 价值 buff 与现有 A_value 相乘；速度取最优；存储相加
+ *   4) 同时生效 buff 上限 3 个；冷却 2 分钟（付费/广告统一）
+ *   5) 单卡概率不展示，只展示稀有度总概率（保留惊喜）
+ *   6) "幸运一击"是即时型 buff（计数器），不入 3 槽位
+ * ========================== */
+const CARD = {
+  // 单次抽卡价格（早期可玩：800 金币，普通盲盒 80 次的累计盈亏平衡点）
+  PRICE: 800,
+
+  // 冷却时间（毫秒）—— 付费抽卡 + 广告抽卡 统一 2 分钟
+  COOLDOWN_MS: 2 * 60 * 1000,
+
+  // 同时生效 buff 上限（"幸运一击"是计数器型不占槽位）
+  MAX_ACTIVE_BUFFS: 3,
+
+  // 9 张卡（按稀有度分组）
+  POOL: [
+    // ========== 劣质（30%）==========
+    {
+      id: 'card_silver',
+      rarity: 'common',
+      cn: '碎银',
+      desc: '立即获得 50 金币',
+      icon: '💰',
+      weight: 18,  // 18/100
+      effect: { type: 'coin', value: 50 },
+    },
+    {
+      id: 'card_copper',
+      rarity: 'common',
+      cn: '铜板',
+      desc: '立即获得 180 金币',
+      icon: '💰',
+      weight: 12,  // 12/100
+      effect: { type: 'coin', value: 180 },
+    },
+
+    // ========== 普通（40%）==========
+    {
+      id: 'card_small_wealth',
+      rarity: 'rare',
+      cn: '小财神',
+      desc: '全局开箱价值 +15%（10 分钟）',
+      icon: '💎',
+      weight: 11,
+      effect: { type: 'valueMult', mult: 1.15, durationMs: 10 * 60 * 1000 },
+    },
+    {
+      id: 'card_swift_wind',
+      rarity: 'rare',
+      cn: '疾风',
+      desc: '机器人拆包间隔 ×0.8（10 分钟）',
+      icon: '⚡',
+      weight: 10,
+      effect: { type: 'speedMult', mult: 0.8, durationMs: 10 * 60 * 1000 },
+    },
+    {
+      id: 'card_treasure',
+      rarity: 'rare',
+      cn: '聚宝盆',
+      desc: '机器人存储上限 +50%（10 分钟）',
+      icon: '🗃️',
+      weight: 10,
+      effect: { type: 'storageMult', mult: 1.5, durationMs: 10 * 60 * 1000 },
+    },
+    {
+      id: 'card_lucky_strike',
+      rarity: 'rare',
+      cn: '幸运一击',
+      desc: '接下来 3 次开箱必出正收益物品',
+      icon: '🍀',
+      weight: 9,
+      effect: { type: 'luckyStreak', count: 3 },
+    },
+
+    // ========== 稀有（20%）==========
+    {
+      id: 'card_god_of_wealth',
+      rarity: 'epic',
+      cn: '财神附体',
+      desc: '全局开箱价值 +30%（10 分钟）',
+      icon: '💎',
+      weight: 11,
+      effect: { type: 'valueMult', mult: 1.30, durationMs: 10 * 60 * 1000 },
+    },
+    {
+      id: 'card_speed_legend',
+      rarity: 'epic',
+      cn: '神速手',
+      desc: '机器人拆包间隔锁 2s（10 分钟）',
+      icon: '⚡',
+      weight: 9,
+      effect: { type: 'speedLock', intervalSec: 2.0, durationMs: 10 * 60 * 1000 },
+    },
+
+    // ========== 罕见（10%，拆 2 张各 5%，限时 3 分钟）==========
+    {
+      id: 'card_rare_blaze',
+      rarity: 'legend',
+      cn: '罕见 3 分钟',
+      desc: '全局开箱价值 ×1.50（仅 3 分钟）',
+      icon: '🔥',
+      weight: 5,
+      effect: { type: 'valueMult', mult: 1.50, durationMs: 3 * 60 * 1000 },
+    },
+    {
+      id: 'card_rare_hidden',
+      rarity: 'legend',
+      cn: '隐藏升级',
+      desc: '隐藏款出现概率大幅提升（仅 3 分钟）',
+      icon: '👁️',
+      weight: 5,
+      effect: { type: 'hiddenBoost', boost: 8, durationMs: 3 * 60 * 1000 },
+    },
+  ],
+
+  // 全收集奖励（9 张卡全抽到过）
+  ALL_REWARD: 50000,
+
+  // 抽卡门槛（金币 ≥ 此值才可抽卡；前期 0 金币时不能玩）
+  MIN_COIN: 0,
+};
+
+/* ========== 卡片稀有度元数据 ==========
+ * 用于渲染卡片背景色 / 边框色 / 图标前缀
+ * 4 档：common / rare / epic / legend
+ * ========== */
+const CARD_RARITY = {
+  common:  { cn: '劣质', pct: 30, cssClass: 'card-r-common'  },
+  rare:    { cn: '普通', pct: 40, cssClass: 'card-r-rare'    },
+  epic:    { cn: '稀有', pct: 20, cssClass: 'card-r-epic'    },
+  legend:  { cn: '罕见', pct: 10, cssClass: 'card-r-legend'  },
 };
 
 /* ========== 图鉴奖励（每档全收齐 + 全部 5 档收齐）==========

@@ -1484,6 +1484,12 @@ body { display: flex; align-items: center; justify-content: center; }
   font-size: 16px;
   filter: drop-shadow(1px 1px 0 rgba(0,0,0,0.15));
 }
+.modal-title .mt-svg {
+  width: 18px; height: 18px;
+  margin-right: 6px;
+  vertical-align: -3px;
+  filter: drop-shadow(1px 1px 0 rgba(0,0,0,0.12));
+}
 
 /* 弹窗标题旁的预览信息（如"价值×1.05 · 自动拆4.5s"）*/
 .modal-title .modal-preview {
@@ -2923,7 +2929,8 @@ body { display: flex; align-items: center; justify-content: center; }
 .codex-home-btn {
   position: relative;  /* 为红点定位 */
   display: inline-flex; align-items: center; justify-content: center;
-  padding: 0; margin: 0;
+  padding: 0; 
+  margin-right: -2px;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -2937,7 +2944,7 @@ body { display: flex; align-items: center; justify-content: center; }
   transform: scale(0.94);
 }
 .codex-home-btn .codex-home-ic {
-  width: 26px; height: 26px;
+  width: 30px; height: 30px;
   display: block;
   pointer-events: none;
   filter: drop-shadow(0.5px 1px 0 rgba(58,40,23,0.18));
@@ -3243,3 +3250,365 @@ body { display: flex; align-items: center; justify-content: center; }
   white-space: nowrap;
 }
 #codexAllAmt { color: var(--gold); font-family: 'DM Mono', monospace; font-weight: 800; }
+
+/* ============================================================
+ * 技能卡抽卡系统（主页按钮 + 抽卡 modal + 卡牌图鉴）
+ * 风格：沿用牛皮纸 zakka，红边硬阴影，emoji 当主视觉
+ * ============================================================ */
+
+/* ---------- 主页抽卡按钮（icon-only，复用 codex-home-btn 样式）---------- */
+.card-home-btn .codex-home-ic {
+  margin-right: -2px;
+  width: 36px; height: 36px;
+}
+/* 主页红点（显示当前 buff 数） */
+.card-home-btn .codex-home-dot {
+  font-family: 'DM Mono', monospace;
+}
+/* 锁定态：金币 < 800 时灰色 + 半透明 */
+.card-home-btn.locked .codex-home-ic {
+  filter: grayscale(1) opacity(0.45);
+  transition: filter 0.2s;
+}
+.card-home-btn.locked:hover .codex-home-ic {
+  filter: grayscale(1) opacity(0.6);
+}
+.card-home-btn.locked { opacity: 0.85; }
+.card-home-btn.unlocked .codex-home-ic {
+  filter: none;
+}
+
+/* ---------- 抽卡 modal 容器 ---------- */
+.card-modal-card { max-width: 380px; }
+.card-modal-card .modal-body {
+  padding: 12px 14px 10px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.card-prob-tag {
+  display: inline-block;
+  font-family: 'DM Mono', monospace;
+  font-size: 9.5px;
+  color: var(--ink-soft);
+  letter-spacing: 1.5px;
+  margin-left: 6px;
+  padding: 2px 7px;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  border-radius: 3px;
+  box-shadow: 1px 1px 0 var(--ink);
+}
+
+/* ---------- 翻牌区（左上角图鉴按钮 + 中央翻牌卡）---------- */
+.card-flip-area {
+  position: relative;
+  display: block;
+  padding: 4px 0 2px;
+  perspective: 800px;
+  min-height: 175px;
+}
+.card-flip-card {
+  position: relative;
+  margin: 0 auto;
+  width: 130px; height: 175px;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+.card-flip-card.flipped { transform: rotateY(180deg); }
+.card-face {
+  position: absolute; inset: 0;
+  border-radius: 6px;
+  border: 2px solid var(--ink);
+  box-shadow: 3px 4px 0 var(--ink);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.card-face svg { width: 100%; height: 100%; display: block; }
+.card-front {
+  transform: rotateY(180deg);
+  background: var(--paper);
+  padding: 10px 8px;
+}
+
+/* ---------- 卡面（翻牌后）---------- */
+.card-front-inner {
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center;
+  gap: 4px;
+  padding: 8px 6px;
+  border-radius: 4px;
+  border: 1.5px dashed currentColor;
+  position: relative;
+}
+.cf-rarity {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  opacity: 0.85;
+  position: absolute;
+  top: 6px; left: 0; right: 0;
+}
+.cf-icon { font-size: 38px; line-height: 1; margin-top: 8px; }
+.cf-name {
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+.cf-desc {
+  font-family: 'Noto Serif SC', serif;
+  font-size: 10.5px;
+  line-height: 1.4;
+  opacity: 0.8;
+  padding: 0 2px;
+}
+
+/* ---------- 4 档稀有度配色（卡面）---------- */
+.card-r-common .card-front-inner,
+.card-r-common.cf-rarity,
+.card-r-common .cf-name,
+.card-r-common .cf-desc { color: var(--ink); background: var(--paper); }
+.card-r-common .card-front-inner { background: #E8DAB8; }
+
+.card-r-rare .card-front-inner,
+.card-r-rare .cf-name { color: var(--ink); }
+.card-r-rare .card-front-inner { background: #C7DAE8; border-color: #4A6B8A; }
+.card-r-rare .card-face { background: #C7DAE8; }
+
+.card-r-epic .card-front-inner,
+.card-r-epic .cf-name { color: var(--ink); }
+.card-r-epic .card-front-inner { background: #D4C5E0; border-color: #6B4A8A; }
+.card-r-epic .card-face { background: #D4C5E0; }
+
+.card-r-legend .card-front-inner,
+.card-r-legend .cf-name { color: var(--ink); }
+.card-r-legend .card-front-inner {
+  background: linear-gradient(135deg, #D4AF37 0%, #C9A961 100%);
+  border-color: #6B4525;
+  border-width: 2px;
+}
+.card-r-legend .card-face { background: #D4AF37; }
+
+/* ---------- buff 列表 ---------- */
+.buff-list-wrap {
+  border: 1.5px solid var(--ink);
+  background: var(--paper-light);
+  box-shadow: 2px 2px 0 var(--ink);
+  padding: 8px 10px;
+}
+.buff-list-title {
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: 'Noto Serif SC', serif; font-weight: 800; font-size: 12px;
+  color: var(--ink); letter-spacing: 2px;
+  margin-bottom: 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px dashed var(--ink);
+}
+.buff-slot-info {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  letter-spacing: 1px;
+}
+.buff-list {
+  display: flex; flex-direction: column; gap: 5px;
+  min-height: 28px;
+}
+.buff-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  font-size: 11.5px;
+  box-shadow: 1px 1px 0 var(--ink);
+}
+.buff-ic { font-size: 16px; line-height: 1; }
+.buff-name { font-family: 'Noto Serif SC', serif; font-weight: 700; color: var(--ink); }
+.buff-time {
+  margin-left: auto;
+  font-family: 'DM Mono', monospace;
+  font-weight: 800;
+  font-size: 11px;
+  color: var(--red);
+  letter-spacing: 0.5px;
+}
+.buff-item-counter .buff-time { color: var(--green); }
+.buff-empty {
+  text-align: center;
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-style: italic;
+  padding: 8px 0;
+  letter-spacing: 1px;
+}
+/* 罕见 buff 用金色边 + 阴影 */
+.buff-item.card-r-legend {
+  background: linear-gradient(135deg, #FBF3E0, #E8DAB8);
+  border-color: #6B4525;
+  box-shadow: 1px 1px 0 #6B4525;
+}
+
+/* ---------- 抽卡 modal 底部：2 个抽卡按钮 + 图鉴入口 ---------- */
+.card-foot {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  background: var(--paper-light);
+  border-top: 1.5px solid var(--ink);
+}
+.card-draw-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 10px 6px;
+  border: 1.5px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 var(--ink);
+  gap: 2px;
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.card-draw-btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
+.card-draw-btn:disabled { cursor: not-allowed; opacity: 0.55; }
+.card-draw-btn .cdb-t1 { font-size: 12px; letter-spacing: 1px; }
+.card-draw-btn .cdb-t2 {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+.card-draw-coin {
+  background: var(--ink);
+  color: var(--paper);
+}
+.card-draw-coin .cdb-t2 { color: var(--gold); }
+.card-draw-ad {
+  background: var(--red);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.card-draw-ad .cdb-t2 { color: #FBE3D8; }
+.card-draw-btn.cd { background: var(--paper-dark); }
+.card-draw-btn.cd .cdb-t1 { color: var(--ink-soft); }
+.card-draw-btn.cd .cdb-t2 { color: var(--ink-soft); }
+/* 卡牌图鉴入口：绝对定位到左上角，纯 SVG，无按钮样式 */
+.card-codex-btn {
+  position: absolute;
+  top: 0; left: 0;
+  width: 32px; height: 32px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2;
+  transition: transform 0.1s, opacity 0.15s;
+  opacity: 0.85;
+}
+.card-codex-btn:hover { opacity: 1; transform: scale(1.08); }
+.card-codex-btn:active { transform: scale(0.95); opacity: 0.7; }
+.card-codex-btn .codex-home-ic {
+  width: 100%; height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+/* ============================================================
+ * 卡牌图鉴子 modal
+ * ============================================================ */
+.card-codex-section {
+  margin-bottom: 8px;
+  border: 1.5px solid var(--ink);
+  box-shadow: 2px 2px 0 var(--ink);
+  background: var(--paper);
+  overflow: hidden;
+}
+.card-codex-section:last-child { margin-bottom: 4px; }
+.card-codex-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 9px;
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 2px;
+  border-bottom: 1.5px dashed var(--ink);
+}
+.card-codex-head .cch-pct {
+  font-family: 'DM Mono', monospace;
+  font-weight: 800;
+  font-size: 11px;
+}
+/* 4 档稀有度背景色（与抽卡 modal 同步）*/
+.card-codex-section.card-r-common { background: #E8DAB8; }
+.card-codex-section.card-r-rare   { background: #C7DAE8; border-color: #4A6B8A; }
+.card-codex-section.card-r-epic   { background: #4A2C5E; color: #FBF3E0; border-color: #6B4525; }
+.card-codex-section.card-r-epic .card-codex-head { border-bottom-color: rgba(244,232,208,0.4); }
+.card-codex-section.card-r-legend { background: linear-gradient(135deg, #FBF3E0, #D4AF37); }
+
+.card-codex-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  padding: 6px 7px 7px;
+}
+.card-codex-item {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 6px 4px 5px;
+  border: 1.5px solid var(--ink);
+  background: var(--paper);
+  text-align: center;
+  min-height: 70px;
+  box-shadow: 1px 1px 0 var(--ink);
+}
+.card-codex-item.locked {
+  background: rgba(58,40,23,0.06);
+  border-style: dashed;
+  border-color: var(--ink-soft);
+  box-shadow: none;
+  opacity: 0.7;
+}
+.card-codex-item .cci-ic {
+  font-size: 24px;
+  line-height: 1;
+  margin-bottom: 3px;
+}
+.card-codex-item.locked .cci-ic {
+  font-family: 'Fraunces', serif;
+  font-size: 28px;
+  color: var(--ink-soft);
+  font-weight: 900;
+}
+.card-codex-item .cci-name {
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 800;
+  font-size: 11px;
+  color: var(--ink);
+  margin-bottom: 2px;
+  letter-spacing: 1px;
+}
+.card-codex-item.locked .cci-name { color: var(--ink-soft); }
+.card-codex-item .cci-desc {
+  font-family: 'Noto Serif SC', serif;
+  font-size: 9.5px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+  padding: 0 1px;
+}
+.card-codex-item.locked .cci-desc { font-style: italic; }
+
+/* 暗色 section 内的 item 颜色调整 */
+.card-codex-section.card-r-epic .card-codex-item { background: #5E3870; color: #FBF3E0; border-color: #6B4525; }
+.card-codex-section.card-r-epic .card-codex-item .cci-name,
+.card-codex-section.card-r-epic .card-codex-item .cci-desc { color: #FBF3E0; }
+.card-codex-section.card-r-epic .card-codex-item.locked { background: rgba(0,0,0,0.3); border-color: rgba(244,232,208,0.4); }
+.card-codex-section.card-r-epic .card-codex-item.locked .cci-name { color: rgba(244,232,208,0.5); }
+.card-codex-section.card-r-epic .card-codex-item.locked .cci-desc { color: rgba(244,232,208,0.4); }

@@ -31,6 +31,14 @@ const UI = {
     this.refreshClearBadge();  // 同步通关徽章
     this.renderStorageBadge();  // 初始化挂机存储角标（存储 > 0 才显示）
     this.refreshCodexBadge();  // 初始化图鉴红点
+    this.refreshCardBadge();   // 初始化抽卡按钮红点（buff 数量）
+    // 后台每秒刷新抽卡红点（buff 可能过期）
+    if (this._cardBadgeTicker) clearInterval(this._cardBadgeTicker);
+    this._cardBadgeTicker = setInterval(() => {
+      if (document.getElementById('page-home')?.classList.contains('active')) {
+        this.refreshCardBadge();
+      }
+    }, 1000);
     this.setupDragScroll(document.getElementById('buyRow'));
   },
 
@@ -264,7 +272,11 @@ const UI = {
 
     // 隐藏款暴富特效：全屏豪华动画
     if (item.isHidden) {
-      setTimeout(() => this.spawnHiddenReveal(item), 250);
+      setTimeout(() => {
+        // 抽出隐藏款时播放一次音效
+        if (typeof SFX_ONE !== 'undefined' && SFX_ONE.play) SFX_ONE.play('hidden');
+        this.spawnHiddenReveal(item);
+      }, 250);
       this.refreshCodexBadge();  // 隐藏款也更新图鉴进度
       return; // 隐藏款跳过常规 fx
     }
@@ -525,6 +537,8 @@ const UI = {
     });
     // 同步主页"看视频"按钮金额(主战场/幸运值变化会影响广告金币)
     this.refreshAdAmount();
+    // 同步抽卡按钮锁定状态（金币跨过 800 触发解锁提示）
+    this.refreshCardBadge();
   },
 
   /**
@@ -832,6 +846,22 @@ const UI = {
       if (e.target.id === 'codexModal') this.closeCodex();
     });
     document.getElementById('btnCodexClaimAll')?.addEventListener('click', () => this.handleClaimAllCodex());
+
+    // 技能卡抽卡
+    document.getElementById('btnCard')?.addEventListener('click', () => this.openCard());
+    document.getElementById('btnCardClose')?.addEventListener('click', () => this.closeCard());
+    document.getElementById('cardModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'cardModal') this.closeCard();
+    });
+    document.getElementById('btnDrawCoin')?.addEventListener('click', () => this.handleDrawCoin());
+    document.getElementById('btnDrawAd')?.addEventListener('click', () => this.handleDrawAd());
+    document.getElementById('cardFlipCard')?.addEventListener('click', () => this._resetCardFlip());
+    document.getElementById('btnOpenCardCodex')?.addEventListener('click', () => this.openCardCodex());
+    document.getElementById('btnCardCodexClose')?.addEventListener('click', () => this.closeCardCodex());
+    document.getElementById('cardCodexModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'cardCodexModal') this.closeCardCodex();
+    });
+    document.getElementById('btnCardAllClaim')?.addEventListener('click', () => this.handleClaimCardAll());
 
     // 划封带：touch
     const parcel = document.getElementById('parcel');
@@ -1870,5 +1900,307 @@ const UI = {
     inline.removeEventListener('mouseup', onEnd);
     inline.removeEventListener('mouseleave', onEnd);
     this._sortEvents = null;
+  },
+
+  /* ============================================================
+   * 技能卡抽卡系统（UI 渲染 + 翻牌动画 + buff 倒计时）
+   * 入口：主页 #btnCard
+   * 子 modal：#cardCodexModal（卡牌图鉴）
+   * ============================================================ */
+  openCard() {
+    // ★ 锁定态：未解锁 且 金币 < 800 不能进 modal，提示"积攒 X 解锁"
+    if (!State.cardUnlocked && State.coin < CARD.PRICE) {
+      const need = CARD.PRICE - State.coin;
+      this.spawnPityTag('restock-fail', `还需积攒 ${need} ◉ 才能解锁技能卡抽卡`);
+      return;
+    }
+    clearExpiredBuffs();
+    this._resetCardFlip();
+    this.renderBuffList();
+    this._refreshCardDrawButtons();
+    document.getElementById('cardModal')?.classList.add('show');
+    this._startBuffTicker();
+  },
+  closeCard() {
+    document.getElementById('cardModal')?.classList.remove('show');
+    this._stopBuffTicker();
+  },
+  _resetCardFlip() {
+    const card = document.getElementById('cardFlipCard');
+    const front = document.getElementById('cardFront');
+    if (card) {
+      card.dataset.state = 'back';
+      card.classList.remove('flipping', 'flipped');
+    }
+    if (front) front.innerHTML = '';
+  },
+
+  /* 渲染 buff 列表（最多 3 槽 + luckyStreak 计数器） */
+  renderBuffList() {
+    const list = document.getElementById('buffList');
+    const slotInfo = document.getElementById('buffSlotInfo');
+    if (!list) return;
+    clearExpiredBuffs();
+    const now = Date.now();
+    const items = [];
+    // 时效性 buff
+    (State.activeBuffs || []).forEach(b => {
+      if (b.type === 'luckyStreak') return;  // 单列
+      if (b.expiresAt <= now) return;
+      const card = CARD.POOL.find(c => c.id === b.cardId);
+      if (!card) return;
+      const remainMs = b.expiresAt - now;
+      const remainSec = Math.ceil(remainMs / 1000);
+      const mm = Math.floor(remainSec / 60);
+      const ss = remainSec % 60;
+      items.push(`
+        <div class="buff-item card-r-${card.rarity}">
+          <span class="buff-ic">${card.icon}</span>
+          <span class="buff-name">${card.cn}</span>
+          <span class="buff-time">${mm}:${ss.toString().padStart(2, '0')}</span>
+        </div>
+      `);
+    });
+    // luckyStreak 计数器（不入槽位）
+    const luckyBuffs = (State.activeBuffs || []).filter(b => b.type === 'luckyStreak' && b.remaining > 0);
+    luckyBuffs.forEach(b => {
+      const card = CARD.POOL.find(c => c.id === b.cardId);
+      if (!card) return;
+      items.push(`
+        <div class="buff-item buff-item-counter card-r-${card.rarity}">
+          <span class="buff-ic">${card.icon}</span>
+          <span class="buff-name">${card.cn}</span>
+          <span class="buff-time">×${b.remaining}</span>
+        </div>
+      `);
+    });
+    list.innerHTML = items.length
+      ? items.join('')
+      : '<div class="buff-empty">无生效 buff</div>';
+    const used = (State.activeBuffs || []).filter(b => b.type !== 'luckyStreak' && b.expiresAt > now).length;
+    if (slotInfo) slotInfo.textContent = `${used}/${CARD.MAX_ACTIVE_BUFFS} 槽`;
+  },
+
+  /* 倒计时刷新（每秒 1 次） */
+  _startBuffTicker() {
+    this._stopBuffTicker();
+    this._buffTicker = setInterval(() => {
+      if (!document.getElementById('cardModal')?.classList.contains('show')) {
+        this._stopBuffTicker();
+        return;
+      }
+      this.renderBuffList();
+      this._refreshCardDrawButtons();
+    }, 1000);
+  },
+  _stopBuffTicker() {
+    if (this._buffTicker) { clearInterval(this._buffTicker); this._buffTicker = null; }
+  },
+
+  /* 刷新 2 个抽卡按钮的冷却/费用状态 */
+  _refreshCardDrawButtons() {
+    const coinBtn = document.getElementById('btnDrawCoin');
+    const adBtn = document.getElementById('btnDrawAd');
+    const priceLabel = document.getElementById('cardPriceLabel');
+    if (priceLabel) priceLabel.textContent = `${CARD.PRICE.toLocaleString('en-US')} ◉`;
+    // 付费冷却
+    const coinCd = Math.ceil(getCardCooldownRemaining('coin') / 1000);
+    if (coinBtn) {
+      const cd = formatCoin(coinCd);
+      if (coinCd > 0) {
+        coinBtn.disabled = true;
+        coinBtn.classList.add('cd');
+        coinBtn.querySelector('.cdb-t1').textContent = '冷却中';
+        coinBtn.querySelector('.cdb-t2').textContent = `${cd}秒`;
+      } else if (State.coin < CARD.PRICE) {
+        coinBtn.disabled = true;
+        coinBtn.classList.remove('cd');
+        coinBtn.querySelector('.cdb-t1').textContent = '金币不足';
+        coinBtn.querySelector('.cdb-t2').textContent = `${CARD.PRICE.toLocaleString('en-US')} ◉`;
+      } else {
+        coinBtn.disabled = false;
+        coinBtn.classList.remove('cd');
+        coinBtn.querySelector('.cdb-t1').textContent = '付费抽卡';
+        coinBtn.querySelector('.cdb-t2').textContent = `${CARD.PRICE.toLocaleString('en-US')} ◉`;
+      }
+    }
+    // 广告冷却
+    const adCd = Math.ceil(getCardCooldownRemaining('ad') / 1000);
+    if (adBtn) {
+      if (adCd > 0) {
+        adBtn.disabled = true;
+        adBtn.classList.add('cd');
+        adBtn.querySelector('.cdb-t1').textContent = '冷却中';
+        adBtn.querySelector('.cdb-t2').textContent = `${adCd}秒`;
+      } else {
+        adBtn.disabled = false;
+        adBtn.classList.remove('cd');
+        adBtn.querySelector('.cdb-t1').textContent = '看广告抽卡';
+        adBtn.querySelector('.cdb-t2').textContent = '▶ 免费';
+      }
+    }
+  },
+
+  /* 实际抽卡 → 翻牌动画 */
+  _doDraw(mode) {
+    const r = drawCard(mode);
+    if (!r.ok) {
+      this.spawnPityTag('lucky', `⚠️ ${r.error}`);
+      this._refreshCardDrawButtons();
+      return;
+    }
+    this.refreshCoin();
+    this.renderCardFront(r.card);
+    // 翻牌：先快速翻过去，再停 0.4s 显示牌面，再缓慢翻回
+    const card = document.getElementById('cardFlipCard');
+    if (card) {
+      card.classList.add('flipping');
+      // 翻牌音效
+      if (typeof SFX_ONE !== 'undefined' && SFX_ONE.play) SFX_ONE.play('cardFlip');
+      setTimeout(() => {
+        card.classList.add('flipped');
+        card.dataset.state = 'front';
+      }, 60);
+    }
+    // 同步 UI
+    this.renderBuffList();
+    this._refreshCardDrawButtons();
+    this.refreshCardBadge();
+  },
+
+  /* 渲染卡面（稀有度样式） */
+  renderCardFront(card) {
+    const front = document.getElementById('cardFront');
+    if (!front) return;
+    const rarity = CARD_RARITY[card.rarity] || { cn: '?', cssClass: 'card-r-common' };
+    // 牌面稀有度背景色（CSS class 控制）
+    front.innerHTML = `
+      <div class="card-front-inner card-r-${card.rarity}">
+        <div class="cf-rarity">${rarity.cn}</div>
+        <div class="cf-icon">${card.icon}</div>
+        <div class="cf-name">${card.cn}</div>
+        <div class="cf-desc">${card.desc}</div>
+      </div>
+    `;
+  },
+
+  handleDrawCoin() { this._doDraw('coin'); },
+  handleDrawAd() {
+    // 调用广告（沿用现有 ad.js 接口）
+    if (typeof Ad !== 'undefined' && Ad.watch) {
+      Ad.watch(() => this._doDraw('ad'));
+    } else {
+      this._doDraw('ad');
+    }
+  },
+
+  /* 主页卡片按钮红点：当前有 buff 时显示数字 */
+  refreshCardBadge() {
+    const dot = document.getElementById('cardHomeDot');
+    if (!dot) return;
+    clearExpiredBuffs();
+    const active = (State.activeBuffs || []).filter(b => {
+      if (b.type === 'luckyStreak') return b.remaining > 0;
+      return b.expiresAt > Date.now();
+    }).length;
+    if (active > 0) {
+      dot.hidden = false;
+      dot.textContent = active;
+      dot.style.fontSize = '8px';
+      dot.style.fontWeight = '800';
+      dot.style.color = '#fff';
+      dot.style.lineHeight = '1';
+      dot.style.display = 'flex';
+      dot.style.alignItems = 'center';
+      dot.style.justifyContent = 'center';
+    } else {
+      dot.hidden = true;
+    }
+    // ★ 抽卡按钮锁定/解锁状态：未解锁 且 金币 < 800 时灰色 + 半透明
+    const btn = document.getElementById('btnCard');
+    if (btn) {
+      const wasLocked = btn.classList.contains('locked');
+      const locked = !State.cardUnlocked && State.coin < CARD.PRICE;
+      btn.classList.toggle('locked', locked);
+      btn.classList.toggle('unlocked', !locked);
+      btn.title = locked
+        ? `积攒 ${CARD.PRICE - State.coin} ◉ 解锁技能卡抽卡`
+        : '技能卡抽卡';
+      // 跨越解锁瞬间的提示（仅在主页激活时）+ 持久化解锁状态
+      if (wasLocked && !locked && document.getElementById('page-home')?.classList.contains('active')) {
+        State.cardUnlocked = true;
+        save();
+        this.spawnPityTag('restock', `🎉 技能卡抽卡已解锁！点击抽卡`);
+      }
+    }
+  },
+
+  /* ========== 卡牌图鉴子 modal ========== */
+  openCardCodex() {
+    this.renderCardCodexContent();
+    document.getElementById('cardCodexModal')?.classList.add('show');
+  },
+  closeCardCodex() {
+    document.getElementById('cardCodexModal')?.classList.remove('show');
+  },
+  renderCardCodexContent() {
+    const body = document.getElementById('cardCodexBody');
+    if (!body) return;
+    const prog = getCardCodexProgress();
+    // 按稀有度分组
+    const byRarity = { common: [], rare: [], epic: [], legend: [] };
+    CARD.POOL.forEach(c => byRarity[c.rarity].push(c));
+    let html = '';
+    for (const rarity of ['common', 'rare', 'epic', 'legend']) {
+      const rar = CARD_RARITY[rarity];
+      const cards = byRarity[rarity];
+      const itemsHtml = cards.map(c => {
+        const collected = !!(State.cardCollection && State.cardCollection[c.id]);
+        return `<div class="card-codex-item card-r-${rarity} ${collected ? 'collected' : 'locked'}">
+          <div class="cci-ic">${collected ? c.icon : '?'}</div>
+          <div class="cci-name">${collected ? c.cn : '???'}</div>
+          <div class="cci-desc">${collected ? c.desc : '尚未抽到'}</div>
+        </div>`;
+      }).join('');
+      html += `<div class="card-codex-section card-r-${rarity}">
+        <div class="card-codex-head">
+          <span class="cch-rarity">${rar.cn}</span>
+          <span class="cch-pct">${rar.pct}%</span>
+        </div>
+        <div class="card-codex-grid">${itemsHtml}</div>
+      </div>`;
+    }
+    body.innerHTML = html;
+    // 底部全收集奖励
+    const allBtn = document.getElementById('btnCardAllClaim');
+    const allMeta = document.getElementById('cardAllMeta');
+    const allAmt = document.getElementById('cardAllAmt');
+    if (allMeta) allMeta.textContent = `${prog.collected} / ${prog.total}`;
+    const allTotal = document.getElementById('cardAllTotal');
+    if (allTotal) allTotal.textContent = prog.total;
+    if (allAmt) allAmt.textContent = `+${(CARD.ALL_REWARD / 1000).toFixed(0)}k ◉`;
+    if (allBtn) {
+      if (State.cardAllCollectedReward) {
+        allBtn.disabled = true;
+        allBtn.classList.add('claimed');
+        allBtn.innerHTML = '✓ 已领取';
+      } else if (prog.complete) {
+        allBtn.disabled = false;
+        allBtn.innerHTML = `🎁 领取 <span id="cardAllAmt">+${(CARD.ALL_REWARD / 1000).toFixed(0)}k ◉</span>`;
+      } else {
+        allBtn.disabled = true;
+        allBtn.innerHTML = `🔒 集齐 ${prog.total} 张解锁`;
+      }
+    }
+  },
+  handleClaimCardAll() {
+    const r = claimCardAllReward();
+    if (!r.ok) {
+      this.spawnPityTag('lucky', `⚠️ ${r.msg}`);
+      return;
+    }
+    this.spawnPityTag('collect', `🏆 卡牌全收集奖励 +${formatCoin(r.amount)} ◉`);
+    this.refreshCoin();
+    this.renderCardCodexContent();
   },
 };

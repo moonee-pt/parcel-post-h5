@@ -19,7 +19,8 @@
           UI.init();
           BGM.init();
           SFX.init();
-          window.__GAME__ = { State, UI, CONFIG, TIER, SKILL, Ad, BGM, BGM_PLAYLIST, SFX };
+          SFX_ONE.init();
+          window.__GAME__ = { State, UI, CONFIG, TIER, SKILL, Ad, BGM, BGM_PLAYLIST, SFX, SFX_ONE };
           console.log('[拆盲盒] 启动完成');
           // 无存档：自动弹出贴面单
           try {
@@ -40,8 +41,9 @@
     UI.init();
     BGM.init();
     SFX.init();
+    SFX_ONE.init();
     // 暴露给控制台调试
-    window.__GAME__ = { State, UI, CONFIG, TIER, SKILL, CODEX, PITY, Ad, BGM, BGM_PLAYLIST, SFX };
+    window.__GAME__ = { State, UI, CONFIG, TIER, SKILL, CODEX, PITY, Ad, BGM, BGM_PLAYLIST, SFX, SFX_ONE };
     console.log('[拆盲盒] 启动完成');
 
     // 无存档（首次启动 / 重置后）：自动弹出贴面单，先赚第一笔

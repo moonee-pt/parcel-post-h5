@@ -289,9 +289,71 @@ const SFX = {
     this.volume = clamp01(v);
     if (this.audio) this.audio.volume = this.volume;
     try { localStorage.setItem(CONFIG.AUDIO.SFX_VOL_KEY, String(this.volume)); } catch (e) {}
+    // 联动一次性音效（同用 SFX_VOL_KEY + 同一个音量滑块）
+    if (typeof SFX_ONE !== 'undefined' && SFX_ONE.setVolume) SFX_ONE.setVolume(this.volume);
   },
 
   /** 读取当前音量（0-1） */
+  getVolume() {
+    return this.volume;
+  },
+};
+
+// =====================================================
+// SFX_ONE 一次性短音效（隐藏款 / 领取金币等）
+// 资源位置：assets/audio/sfx_hidden.mp3  / sfx_coin.mp3
+// 行为：每次 play() 从头播；新播放会打断旧的
+// 音量：共用 SFX_VOL_KEY（与 SFX 划拉音一个滑块一起调）
+// =====================================================
+
+const SFX_ONE = {
+  // id → 资源路径。新增音效在这里加一行即可
+  files: {
+    hidden:   'assets/audio/sfx_hidden.mp3',    // 抽出隐藏款时
+    coin:     'assets/audio/sfx_coin.mp3',      // 领取金币时（图鉴奖励 / 机器人存储）
+    cardFlip: 'assets/audio/sfx_card_flip.mp3', // 技能里抽卡翻牌时
+  },
+  audio: null,
+  volume: 0.8,
+
+  init() {
+    this.audio = document.getElementById('sfxOne');
+    if (!this.audio) return;
+    // 共用 SFX 音量 key（一个滑块统一控所有音效）
+    try {
+      const v = localStorage.getItem(CONFIG.AUDIO.SFX_VOL_KEY);
+      this.volume = v != null ? clamp01(parseFloat(v)) : CONFIG.AUDIO.DEFAULT_SFX;
+    } catch (e) {
+      this.volume = CONFIG.AUDIO.DEFAULT_SFX;
+    }
+    this.audio.volume = this.volume;
+    this.audio.addEventListener('error', () => {
+      console.warn('[SFX_ONE] 资源加载失败：', this.audio?.src);
+    });
+  },
+
+  /** 播放指定 id 的一次性音效（打断旧的） */
+  play(id) {
+    if (!this.audio) return;
+    const file = this.files[id];
+    if (!file) {
+      console.warn('[SFX_ONE] 未知音效 id：', id);
+      return;
+    }
+    try {
+      this.audio.pause();
+      this.audio.currentTime = 0;
+      this.audio.src = file;
+      this.audio.play().catch(() => {});
+    } catch (e) {}
+  },
+
+  /** 设置音量（0-1），不单独持久化（共用 SFX_VOL_KEY） */
+  setVolume(v) {
+    this.volume = clamp01(v);
+    if (this.audio) this.audio.volume = this.volume;
+  },
+
   getVolume() {
     return this.volume;
   },

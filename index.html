@@ -103,7 +103,25 @@
           </svg>
           <span class="codex-home-dot" id="codexHomeDot" hidden></span>
         </button>
-        <button class="reset-btn" id="btnReset" title="清除存档重新开始">
+        <!-- 抽卡入口：icon-only，参考 codex 风格；红点显示当前生效 buff 数量 -->
+        <button class="codex-home-btn card-home-btn" id="btnCard" title="技能卡抽卡">
+          <svg class="codex-home-ic" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <!-- 卡牌主体：左下角斜放 + 右上角斜放，模拟"叠卡" -->
+            <rect x="5" y="8" width="13" height="11" rx="1.2"
+                  fill="#E8DAB8" stroke="#3A2817" stroke-width="1.2" transform="rotate(-8 11.5 13.5)"/>
+            <rect x="6" y="7.5" width="13" height="11" rx="1.2"
+                  fill="#F4E8D0" stroke="#3A2817" stroke-width="1.4" transform="rotate(6 12.5 13)"/>
+            <!-- 卡面装饰：四角小红点 + 中心问号 -->
+            <circle cx="8" cy="9.5" r="0.7" fill="#B83A2E" transform="rotate(6 12.5 13)"/>
+            <circle cx="17" cy="9.5" r="0.7" fill="#B83A2E" transform="rotate(6 12.5 13)"/>
+            <circle cx="8" cy="16.5" r="0.7" fill="#B83A2E" transform="rotate(6 12.5 13)"/>
+            <circle cx="17" cy="16.5" r="0.7" fill="#B83A2E" transform="rotate(6 12.5 13)"/>
+            <text x="12.5" y="14.5" text-anchor="middle" font-family="Fraunces, serif"
+                  font-size="7" font-weight="900" fill="#3A2817" transform="rotate(6 12.5 13)">?</text>
+          </svg>
+          <span class="codex-home-dot" id="cardHomeDot" hidden></span>
+        </button>
+         <button class="reset-btn" id="btnReset" title="清除存档重新开始">
           <span class="rb-ic">⟳</span>
           <span class="rb-name">重置</span>
         </button>
@@ -342,6 +360,112 @@
     </div>
   </div>
 
+  <!-- ========== MODAL: 技能卡抽卡 ========== -->
+  <div class="modal-mask" id="cardModal">
+    <div class="modal-card card-modal-card">
+      <div class="modal-head">
+        <div class="modal-title">
+          <span class="mt-ic">✦</span>技能卡
+        </div>
+        <button class="modal-close" id="btnCardClose">×</button>
+      </div>
+      <div class="modal-body" id="cardModalBody">
+        <!-- 翻牌区：左上角图鉴按钮（绝对定位）+ 中央翻牌卡（保持居中） -->
+        <div class="card-flip-area">
+          <button class="card-codex-btn" id="btnOpenCardCodex" title="卡牌图鉴">
+            <svg class="codex-home-ic" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M3 4.2 L11 5.4 L11 21.5 L3 20.3 Z"
+                    fill="#F4E8D0" stroke="#3A2817" stroke-width="1.4" stroke-linejoin="round"/>
+              <path d="M11 5.4 L21 4.2 L21 20.3 L11 21.5 Z"
+                    fill="#E8DAB8" stroke="#3A2817" stroke-width="1.4" stroke-linejoin="round"/>
+              <path d="M11 5.4 L11 21.5" stroke="#3A2817" stroke-width="1.2"/>
+              <line x1="5" y1="8"  x2="9"  y2="8.4" stroke="#3A2817" stroke-width="0.7"/>
+              <line x1="5" y1="10.5" x2="9" y2="10.9" stroke="#3A2817" stroke-width="0.7"/>
+              <line x1="5" y1="13" x2="9"  y2="13.4" stroke="#3A2817" stroke-width="0.7"/>
+              <line x1="13" y1="8"  x2="19" y2="7.6" stroke="#3A2817" stroke-width="0.7"/>
+              <line x1="13" y1="10.5" x2="19" y2="10.1" stroke="#3A2817" stroke-width="0.7"/>
+              <line x1="13" y1="13" x2="17.5" y2="12.7" stroke="#3A2817" stroke-width="0.7"/>
+              <circle cx="11" cy="13.4" r="1.3" fill="#D4AF37" stroke="#3A2817" stroke-width="0.7"/>
+            </svg>
+          </button>
+          <div class="card-flip-card" id="cardFlipCard" data-state="back">
+            <!-- 卡背 -->
+            <div class="card-face card-back">
+              <svg viewBox="0 0 120 160" xmlns="http://www.w3.org/2000/svg">
+                <rect x="6" y="6" width="108" height="148" rx="4" fill="#F4E8D0" stroke="#3A2817" stroke-width="2.5"/>
+                <rect x="14" y="14" width="92" height="132" rx="2" fill="none" stroke="#3A2817" stroke-width="1" stroke-dasharray="3,2"/>
+                <text x="60" y="86" text-anchor="middle" font-family="Fraunces, serif" font-size="44" font-weight="900" fill="#3A2817" opacity="0.18">?</text>
+                <text x="60" y="120" text-anchor="middle" font-family="Noto Serif SC, serif" font-size="10" font-weight="700" fill="#3A2817" opacity="0.4" letter-spacing="3">TAP TO DRAW</text>
+              </svg>
+            </div>
+            <!-- 卡面（翻牌后显示） -->
+            <div class="card-face card-front" id="cardFront"></div>
+          </div>
+        </div>
+
+        <!-- 当前生效的 buff 列表（最多 3 个 + luckyStreak 计数器） -->
+        <div class="buff-list-wrap">
+          <div class="buff-list-title">
+            <span>生效中</span>
+            <span class="buff-slot-info" id="buffSlotInfo">0/3 槽</span>
+          </div>
+          <div class="buff-list" id="buffList">
+            <!-- 由 JS 渲染 -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot card-foot">
+        <button class="card-draw-btn card-draw-ad" id="btnDrawAd">
+          <span class="cdb-t1">看广告抽卡</span>
+          <span class="cdb-t2">▶ 免费</span>
+        </button>
+         <button class="card-draw-btn card-draw-coin" id="btnDrawCoin">
+          <span class="cdb-t1">付费抽卡</span>
+          <span class="cdb-t2" id="cardPriceLabel">2,000 ◉</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== MODAL: 技能卡图鉴（子 modal）========== -->
+  <div class="modal-mask" id="cardCodexModal">
+    <div class="modal-card codex-card">
+      <div class="modal-head">
+        <div class="modal-title">
+          <svg class="mt-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M3 4.2 L11 5.4 L11 21.5 L3 20.3 Z"
+                  fill="#F4E8D0" stroke="#3A2817" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="M11 5.4 L21 4.2 L21 20.3 L11 21.5 Z"
+                  fill="#E8DAB8" stroke="#3A2817" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="M11 5.4 L11 21.5" stroke="#3A2817" stroke-width="1.2"/>
+            <line x1="5" y1="8"  x2="9"  y2="8.4" stroke="#3A2817" stroke-width="0.7"/>
+            <line x1="5" y1="10.5" x2="9" y2="10.9" stroke="#3A2817" stroke-width="0.7"/>
+            <line x1="5" y1="13" x2="9"  y2="13.4" stroke="#3A2817" stroke-width="0.7"/>
+            <line x1="13" y1="8"  x2="19" y2="7.6" stroke="#3A2817" stroke-width="0.7"/>
+            <line x1="13" y1="10.5" x2="19" y2="10.1" stroke="#3A2817" stroke-width="0.7"/>
+            <line x1="13" y1="13" x2="17.5" y2="12.7" stroke="#3A2817" stroke-width="0.7"/>
+            <circle cx="11" cy="13.4" r="1.3" fill="#D4AF37" stroke="#3A2817" stroke-width="0.7"/>
+          </svg>
+          卡牌图鉴
+        </div>
+        <button class="modal-close" id="btnCardCodexClose">×</button>
+      </div>
+      <div class="modal-body" id="cardCodexBody">
+        <!-- 由 JS 渲染 4 档卡片网格 -->
+      </div>
+      <div class="modal-foot codex-foot">
+        <div class="codex-all-row" id="cardAllRow">
+          <div class="codex-all-info">
+            <span class="codex-all-label">全图鉴 · <span id="cardAllTotal">10</span> 张全收齐</span>
+            <span class="codex-all-meta" id="cardAllMeta">0 / 10</span>
+          </div>
+          <button class="codex-claim-btn" id="btnCardAllClaim" disabled>🎁 领取 <span id="cardAllAmt">+50k ◉</span></button>
+        </div>
+        <div class="mf-hint">每抽到 1 张新卡自动点亮 · 单卡概率不展示</div>
+      </div>
+    </div>
+  </div>
+
   <!-- ========== MODAL: 隐私政策(首次启动) ========== -->
   <div class="privacy-mask" id="privacyMask">
     <div class="privacy-card">
@@ -389,6 +513,8 @@
 <audio id="bgm" preload="none" loop></audio>
 <!-- SFX 划拉音（用户开始划盲盒封带时循环播放，松手即停）-->
 <audio id="sfxTear" preload="auto" loop></audio>
+<!-- SFX 一次性短音效（隐藏款、领取金币等）-->
+<audio id="sfxOne" preload="auto"></audio>
 
 <!-- 脚本顺序：配置 → 状态 → 广告 → UI → 音频 → 隐私 → 主循环 -->
 <script src="js/config.js"></script>

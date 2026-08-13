@@ -46,6 +46,22 @@ const State = {
   collectionRewards: { ordinary: false, premium: false, luxury: false, epic: false, mythic: false },
   // 图鉴：全图鉴（5 档全收齐）奖励是否已领取
   allCollectionReward: false,
+
+  // ========== 技能卡抽取系统 ==========
+  // 当前生效的 buff（{cardId, type, payload, expiresAt}）
+  //   type: 'valueMult' | 'speedMult' | 'storageMult' | 'speedLock' | 'luckyStreak'
+  //   'luckyStreak' 用 remaining 字段（剩余必中次数），其他用 expiresAt（过期时间戳）
+  activeBuffs: [],
+  // 技能卡图鉴：已抽到过的卡 { cardId: true }
+  cardCollection: {},
+  // 9 张全收集奖励是否已领取
+  cardAllCollectedReward: false,
+  // 抽卡冷却结束时间戳（0=无冷却）—— 付费 + 广告 共享 2 分钟
+  cardDrawCooldownEnd: 0,
+  // 抽卡是否已解锁（一旦金币 ≥ 800 就解锁，永不解锁回锁定）
+  cardUnlocked: false,
+  // 抽卡总次数（用于统计）
+  cardDrawCount: 0,
 };
 
 /* ---------- 存档 ---------- */
@@ -70,6 +86,13 @@ function save() {
       collection: State.collection,
       collectionRewards: State.collectionRewards,
       allCollectionReward: State.allCollectionReward,
+      // 技能卡系统存档
+      activeBuffs: State.activeBuffs,
+      cardCollection: State.cardCollection,
+      cardAllCollectedReward: State.cardAllCollectedReward,
+      cardDrawCooldownEnd: State.cardDrawCooldownEnd,
+      cardUnlocked: State.cardUnlocked,
+      cardDrawCount: State.cardDrawCount,
     };
     localStorage.setItem(CONFIG.SAVE_KEY, JSON.stringify(data));
   } catch (e) {
@@ -127,6 +150,23 @@ function load() {
       }
     }
     if (typeof data.allCollectionReward === 'boolean') State.allCollectionReward = data.allCollectionReward;
+    // 技能卡系统：迁移到独立字段（缺失时给空对象/0 兜底）
+    if (Array.isArray(data.activeBuffs)) State.activeBuffs = data.activeBuffs;
+    if (data.cardCollection && typeof data.cardCollection === 'object') {
+      State.cardCollection = data.cardCollection;
+    }
+    if (typeof data.cardAllCollectedReward === 'boolean') State.cardAllCollectedReward = data.cardAllCollectedReward;
+    if (typeof data.cardDrawCooldownEnd === 'number') State.cardDrawCooldownEnd = data.cardDrawCooldownEnd;
+    if (typeof data.cardUnlocked === 'boolean') State.cardUnlocked = data.cardUnlocked;
+    // 兼容旧存档：曾抽过卡（cardDrawCount > 0）或当前金币 ≥ PRICE ⇒ 视为已解锁
+    if (State.cardDrawCount > 0 || State.coin >= CARD.PRICE) {
+      State.cardUnlocked = true;
+    }
+    // 兼容旧存档：旧版广告 CD 字段取 max 并入共享 CD（防止回退）
+    if (typeof data.cardAdCooldownEnd === 'number' && data.cardAdCooldownEnd > State.cardDrawCooldownEnd) {
+      State.cardDrawCooldownEnd = data.cardAdCooldownEnd;
+    }
+    if (typeof data.cardDrawCount === 'number') State.cardDrawCount = data.cardDrawCount;
   } catch (e) {
     console.warn('读档失败', e);
   }
@@ -180,10 +220,10 @@ function isMaxLevel(id) {
   return getSkillLv(id) >= def.maxLevel;
 }
 
-/* 汇总所有激活的技能效果（仅价值加成 + 自动化） */
+/* 汇总所有激活的技能效果（技能树 + 时效性 buff） */
 function getEffects() {
   const fx = {
-    valueMult: 1,     // 价值倍率（来自 A_value）
+    valueMult: 1,     // 价值倍率（来自 A_value + 时效性 buff 相乘叠加）
     autoIntervalDiscount: 0, // 自动拆包间隔折扣
   };
   for (const id in SKILL) {
@@ -194,6 +234,8 @@ function getEffects() {
       Object.assign(fx, e);
     }
   }
+  // 叠加时效性 buff（仅 valueMult；速度/存储在 getEffectiveAutoInterval / getEffectiveStorageMax 中处理）
+  fx.valueMult = getBuffedValueMult(fx.valueMult);
   return fx;
 }
 
@@ -285,10 +327,19 @@ function rollItem(tierId, opts = {}) {
   // opts.collectToCodex: 是否计入图鉴（机器人自动拆不计入，玩家手动拆计入）
   const collectToCodex = opts.collectToCodex !== false;
   const tier = TIER[tierId];
+  // 先清过期 buff
+  clearExpiredBuffs();
   const fx = getEffects();
+  // 「隐藏升级」buff：检测是否有 hiddenBoost buff 生效
+  const hiddenBoost = (State.activeBuffs || []).reduce((s, b) => {
+    if (b.type === 'hiddenBoost' && b.expiresAt > Date.now()) return s + b.boost;
+    return s;
+  }, 0);
   const items = tier.items.map(it => {
     let w = it.weight;
     w = w + luckyWeightBonus(tierId, it);
+    // 隐藏款额外加权重（抽卡 buff「隐藏升级」生效时）
+    if (hiddenBoost > 0 && it.hidden) w += hiddenBoost;
     return { ...it, _w: w };
   });
 
@@ -303,6 +354,17 @@ function rollItem(tierId, opts = {}) {
       isOrdinaryPity = true;
     }
   }
+  // === 技能卡「幸运一击」buff 判定：只在普通包裹生效（其他档位无保底体系，硬塞会破坏期望） ===
+  let isLuckyStrike = false;
+  const luckyBuff = (State.activeBuffs || []).find(b => b.type === 'luckyStreak' && b.remaining > 0);
+  if (luckyBuff && tierId === 'ordinary') {
+    // 替换为"正收益物品"候选集（复用普通保底相同的物品列表）
+    const profitItems = items.filter(it => it.name === '小玩具' || it.name === '耳机');
+    if (profitItems.length > 0) {
+      candidates = profitItems;
+      isLuckyStrike = true;
+    }
+  }
   if (candidates.length === 0) candidates = items;  // 极端兜底
 
   const cTotal = candidates.reduce((s, it) => s + it._w, 0);
@@ -313,13 +375,17 @@ function rollItem(tierId, opts = {}) {
     if (r <= 0) { picked = it; break; }
   }
 
-  // 物品价值（仅由 A_value 技能影响）
+  // 物品价值（仅由 A_value 技能 + 时效性 buff 影响）
   const value = Math.floor(picked.value * fx.valueMult);
 
   // === 更新保底计数（只对普通包裹维护）===
   if (tierId === 'ordinary') {
     const isProfit = picked.name === '小玩具' || picked.name === '耳机';
     State.ordNoProfitStreak = isProfit ? 0 : ((State.ordNoProfitStreak || 0) + 1);
+  }
+  // === 「幸运一击」消耗一次 ===
+  if (luckyBuff && isLuckyStrike) {
+    luckyBuff.remaining -= 1;
   }
   // === 图鉴：标记物品为已收集（隐藏款也计入）===
   // 但机器人自动拆的物品不计入图鉴
@@ -335,6 +401,7 @@ function rollItem(tierId, opts = {}) {
     isBad: !!picked.bad,
     isHidden: !!picked.hidden,
     isOrdinaryPity,
+    isLuckyStrike,
   };
 }
 
@@ -375,6 +442,8 @@ function claimCodexTierReward(tierId) {
   State.coin += reward;
   State.collectionRewards[tierId] = true;
   save();
+  // 领取金币时播放一次音效
+  if (typeof SFX_ONE !== 'undefined' && SFX_ONE.play) SFX_ONE.play('coin');
   return { ok: true, amount: reward };
 }
 
@@ -386,6 +455,8 @@ function claimAllCodexReward() {
   State.coin += reward;
   State.allCollectionReward = true;
   save();
+  // 领取金币时播放一次音效
+  if (typeof SFX_ONE !== 'undefined' && SFX_ONE.play) SFX_ONE.play('coin');
   return { ok: true, amount: reward };
 }
 
@@ -606,8 +677,12 @@ function unlockSkillFree(id) {
 /* ---------- 自动拆包机器人 ---------- */
 function getAutoInterval() {
   if (!State.autoOpenUnlocked) return 0;
+  // 先清过期 buff
+  clearExpiredBuffs();
   const fx = getEffects();
-  return Math.max(0.5, 5 - fx.autoIntervalDiscount);
+  const base = Math.max(0.5, 5 - fx.autoIntervalDiscount);
+  // 叠加时效性 buff（速度锁 / 速度倍率）
+  return Math.max(0.5, getEffectiveAutoInterval(base));
 }
 
 function startAutoOpen() {
@@ -667,7 +742,7 @@ function autoOpenTick() {
     return;
   }
   // 2) 存储已满 → 暂停拆包
-  if (State.idleStorage >= State.idleStorageMax) {
+  if (State.idleStorage >= getEffectiveStorageMax(State.idleStorageMax)) {
     if (State.autoOpenBlockReason !== 'storageFull') {
       State.autoOpenPaused = true;
       State.autoOpenBlockReason = 'storageFull';
@@ -690,7 +765,8 @@ function autoOpenTick() {
     return;
   }
   // 正常入存储（防御性限制到 [0, max]）
-  State.idleStorage = Math.max(0, Math.min(State.idleStorage + net, State.idleStorageMax));
+  const effMax = getEffectiveStorageMax(State.idleStorageMax);
+  State.idleStorage = Math.max(0, Math.min(State.idleStorage + net, effMax));
   save();
   if (typeof UI !== 'undefined' && UI.onAutoOpen) {
     UI.onAutoOpen(tierId, item, cost, gain, net);
@@ -709,12 +785,183 @@ function collectIdleStorage() {
     State.autoOpenBlockReason = null;
   }
   save();
+  // 领取金币时播放一次音效
+  if (typeof SFX_ONE !== 'undefined' && SFX_ONE.play) SFX_ONE.play('coin');
   if (typeof UI !== 'undefined') {
     if (UI.refreshCoin) UI.refreshCoin();
     if (UI.renderStorageBadge) UI.renderStorageBadge();
     if (UI.refreshRobotChip) UI.refreshRobotChip();
   }
   return { ok: true, amount };
+}
+
+/* ============================================================
+ * 技能卡抽取系统（后期）
+ * 设计：valueMult 相乘 / 速度取最优 / 存储相加 / 3 槽上限
+ * 9 张卡 / 4 档稀有度 / 单价 2000 / 2 min 冷却
+ * ============================================================ */
+
+/* 清理已过期的 buff（每次状态读取前调用，保证 activeBuffs 干净） */
+function clearExpiredBuffs() {
+  const now = Date.now();
+  State.activeBuffs = (State.activeBuffs || []).filter(b => {
+    if (b.type === 'luckyStreak') return b.remaining > 0;
+    return b.expiresAt > now;
+  });
+}
+
+/* 价值倍率叠加：基础值 × 所有 valueMult 类型 buff */
+function getBuffedValueMult(baseMult) {
+  let m = baseMult;
+  for (const b of (State.activeBuffs || [])) {
+    if (b.type === 'valueMult' && b.expiresAt > Date.now()) {
+      m *= b.mult;
+    }
+  }
+  return m;
+}
+
+/* 自动拆包间隔（秒）：取 buff 的"锁 2s" 和"×0.8" 与基础值计算后的最小值 */
+function getEffectiveAutoInterval(baseIntervalSec) {
+  let best = baseIntervalSec;
+  for (const b of (State.activeBuffs || [])) {
+    if (b.expiresAt <= Date.now()) continue;
+    if (b.type === 'speedLock') {
+      if (b.intervalSec < best) best = b.intervalSec;
+    } else if (b.type === 'speedMult') {
+      const candidate = best * b.mult;  // 每次相乘（累乘：×0.8 × ×0.8 = ×0.64）
+      if (candidate < best) best = candidate;
+    }
+  }
+  return best;
+}
+
+/* 存储上限：基础值 × (1 + 所有 storageMult 累乘 - 1)  → 实际是 base × 累乘 mult */
+function getEffectiveStorageMax(baseMax) {
+  let m = 1;
+  for (const b of (State.activeBuffs || [])) {
+    if (b.expiresAt <= Date.now()) continue;
+    if (b.type === 'storageMult') m *= b.mult;
+  }
+  return Math.floor(baseMax * m);
+}
+
+/* 当前占用槽位的 buff 数（luckyStreak 不占槽） */
+function countActiveBuffSlots() {
+  return (State.activeBuffs || []).filter(b => b.type !== 'luckyStreak' && b.expiresAt > Date.now()).length;
+}
+
+/* 抽卡：根据权重抽 1 张卡（返回卡定义） */
+function rollCard() {
+  const totalWeight = CARD.POOL.reduce((s, c) => s + c.weight, 0);
+  let r = Math.random() * totalWeight;
+  for (const c of CARD.POOL) {
+    r -= c.weight;
+    if (r <= 0) return c;
+  }
+  return CARD.POOL[CARD.POOL.length - 1];
+}
+
+/* 抽卡入口：mode = 'coin' | 'ad'
+ * 返回 { ok, card, error } */
+function drawCard(mode) {
+  clearExpiredBuffs();
+  if (State.coin < CARD.MIN_COIN && mode === 'coin') {
+    return { ok: false, error: '金币不足' };
+  }
+  // 冷却检查（付费 + 广告 共享 2 分钟 CD）
+  const now = Date.now();
+  if (State.cardDrawCooldownEnd > now) {
+    const remain = Math.ceil((State.cardDrawCooldownEnd - now) / 1000);
+    return { ok: false, error: `冷却中，还剩 ${remain} 秒` };
+  }
+  if (mode === 'coin') {
+    if (State.coin < CARD.PRICE) {
+      return { ok: false, error: '金币不足' };
+    }
+    State.coin -= CARD.PRICE;
+  }
+  // 共享 CD：付费和广告都重置同一个字段
+  State.cardDrawCooldownEnd = now + CARD.COOLDOWN_MS;
+
+  // 抽卡
+  const card = rollCard();
+
+  // 加入图鉴
+  State.cardCollection[card.id] = true;
+
+  // 应用 buff
+  const fx = card.effect;
+  if (fx.type === 'coin') {
+    // 立即金币
+    State.coin += fx.value;
+  } else if (fx.type === 'luckyStreak') {
+    // 计数器型：同 id 可叠加
+    const existing = State.activeBuffs.find(b => b.type === 'luckyStreak' && b.cardId === card.id);
+    if (existing) {
+      existing.remaining += fx.count;
+    } else {
+      State.activeBuffs.push({
+        cardId: card.id,
+        type: 'luckyStreak',
+        remaining: fx.count,
+      });
+    }
+  } else {
+    // 时效型 buff
+    // 槽位已满：阻止（UI 层先检查，这里兜底）
+    if (countActiveBuffSlots() >= CARD.MAX_ACTIVE_BUFFS) {
+      // 退还金币（仅付费模式）+ 清掉刚加的 CD
+      if (mode === 'coin') {
+        State.coin += CARD.PRICE;
+      }
+      State.cardDrawCooldownEnd = 0;
+      return { ok: false, error: 'buff 槽位已满' };
+    }
+    State.activeBuffs.push({
+      cardId: card.id,
+      type: fx.type,
+      mult: fx.mult,
+      intervalSec: fx.intervalSec,
+      expiresAt: Date.now() + fx.durationMs,
+    });
+  }
+
+  State.cardDrawCount = (State.cardDrawCount || 0) + 1;
+  save();
+  return { ok: true, card };
+}
+
+/* 领取 9 张全收集奖励 */
+function claimCardAllReward() {
+  if (State.cardAllCollectedReward) return { ok: false, msg: '已领取' };
+  const total = CARD.POOL.length;
+  const collected = Object.keys(State.cardCollection || {}).length;
+  if (collected < total) return { ok: false, msg: `未集齐（${collected}/${total}）` };
+  State.coin += CARD.ALL_REWARD;
+  State.cardAllCollectedReward = true;
+  save();
+  // 领取金币时播放一次音效
+  if (typeof SFX_ONE !== 'undefined' && SFX_ONE.play) SFX_ONE.play('coin');
+  return { ok: true, amount: CARD.ALL_REWARD };
+}
+
+/* 卡牌图鉴进度 */
+function getCardCodexProgress() {
+  const total = CARD.POOL.length;
+  const collected = Object.keys(State.cardCollection || {}).length;
+  return {
+    collected: Math.min(collected, total),
+    total,
+    ratio: total > 0 ? collected / total : 0,
+    complete: collected >= total,
+  };
+}
+
+/* 抽卡剩余冷却（毫秒），0 = 无冷却；付费 + 广告共享 */
+function getCardCooldownRemaining(_mode) {
+  const now = Date.now();
+  return Math.max(0, (State.cardDrawCooldownEnd || 0) - now);
 }
 
 /* ---------- 当前属性（用于 modal 展示）---------- */
