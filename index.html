@@ -42,7 +42,7 @@
       </div>
     </div>
 
-    <!-- AD STRIP：左侧幸运值入口 + 自动补货 chip；右侧 4 个工具按钮竖排 -->
+    <!-- AD STRIP：左侧幸运值入口 + 自动补货 chip；中间通关 chip；右侧 4 个工具按钮竖排 -->
     <div class="ad-strip">
       <div class="ad-strip-left">
         <button class="lucky-chip" id="btnLucky">
@@ -69,6 +69,11 @@
             <span class="rt-arrow">›</span>
           </button>
         </div>
+      </div>
+      <!-- 通关 chip：和"幸运值"和"看视频"同一行，居中显示 -->
+      <div class="clear-chip" id="clearChip" hidden title="所有升级已满级">
+        <span class="cc-ic">🏆</span>
+        <span class="cc-name">已通关！</span>
       </div>
       <div class="ad-strip-right">
         <button class="ad-btn" id="btnWatchAd">
@@ -211,14 +216,39 @@
     <div class="modal-card">
       <div class="modal-head">
         <div class="modal-title"><span class="mt-ic">🍀</span>幸运值</div>
-        <button class="modal-close" id="btnLuckyClose">×</button>
+        <div class="modal-head-actions">
+          <button class="ad-btn lc-unlock-all-btn" id="btnLuckyUnlockAll" title="看广告解锁所有档位的赚钱概率和平均赚">
+            <div class="ad-icon">▶</div>
+            <div class="ad-body">
+              <div class="ad-t1">解锁收益分析</div>
+            </div>
+          </button>
+          <button class="modal-close" id="btnLuckyClose">×</button>
+        </div>
       </div>
       <div class="modal-body" id="luckyModalBody">
-        <!-- 由 JS 渲染 3 张档位卡片 -->
+        <!-- 由 JS 渲染 5 张档位卡片 -->
       </div>
-      <div class="modal-foot">
-        <div class="mf-hint">优先升级低档盲盒回本，再投高档搏稀物</div>
+    </div>
+  </div>
+
+  <!-- ========== MODAL: 通关庆祝弹窗（最后一次升级触发，达成所有 SKILL + 5 档 LUCKY 满级）========== -->
+  <div class="modal-mask" id="clearModal">
+    <div class="modal-card clear-modal-card">
+      <div class="clear-modal-art">🏆</div>
+      <div class="clear-modal-title">恭喜通关！</div>
+      <div class="clear-modal-sub">所有可购买升级已满级</div>
+      <div class="clear-modal-body">
+        <div class="clear-modal-row"><span class="cmr-ic">💰</span>价值加成 · Lv.10</div>
+        <div class="clear-modal-row"><span class="cmr-ic">🔄</span>自动补货 · 已激活</div>
+        <div class="clear-modal-row"><span class="cmr-ic">🤖</span>自动拆包机器人 · 已激活</div>
+        <div class="clear-modal-row"><span class="cmr-ic">⏩</span>拆包加速 · Lv.5</div>
+        <div class="clear-modal-row"><span class="cmr-ic">🛠️</span>机器人分拣强化 · Lv.4</div>
+        <div class="clear-modal-row"><span class="cmr-ic">🗃️</span>扩容仓库 · Lv.15</div>
+        <div class="clear-modal-row cmr-lucky"><span class="cmr-ic">🍀</span>幸运值 · 5 档全满</div>
       </div>
+      <div class="clear-modal-hint">可以继续拆盲盒、看广告、滚雪球 🎉</div>
+      <button class="clear-modal-btn" id="btnClearModalClose">继续游戏</button>
     </div>
   </div>
 
@@ -256,17 +286,59 @@
     </div>
   </div>
 
+  <!-- ========== MODAL: 隐私政策(首次启动) ========== -->
+  <div class="privacy-mask" id="privacyMask">
+    <div class="privacy-card">
+      <div class="privacy-head">
+        <div class="privacy-title">服务协议与隐私政策</div>
+      </div>
+      <div class="privacy-body">
+        <p class="privacy-intro">欢迎使用「暴富盲盒拆拆拆」。在您开始游玩前,请认真阅读<span class="privacy-emph">《隐私政策》</span>与<span class="privacy-emph">《用户协议》</span>的全部条款,您同意并接受全部条款后再开始使用我们的服务。</p>
+        <ul class="privacy-points">
+          <li>我们仅收集 TapTap 账号信息、设备广告标识与游戏本地存档,用于登录、展示激励视频广告与保存游戏进度。</li>
+          <li>您的游戏数据存储在您设备的本地存储中,清除浏览器数据将导致存档丢失。</li>
+          <li>本游戏为免费休闲游戏,无内购、无强制付费。</li>
+        </ul>
+        <p class="privacy-link-row">
+          <a class="privacy-link" href="https://moonee-pt.github.io/parcel-post-h5/privacy.html" target="_blank" rel="noopener">查看完整《隐私政策》 ↗</a>
+        </p>
+      </div>
+      <div class="privacy-foot">
+        <label class="privacy-check">
+          <input type="checkbox" id="privacyCheck">
+          <span class="privacy-check-box" aria-hidden="true"></span>
+          <span class="privacy-check-text">我已阅读并同意上述条款</span>
+        </label>
+        <div class="privacy-btns">
+          <button class="privacy-btn privacy-btn-reject" id="privacyReject" type="button">不同意并退出</button>
+          <button class="privacy-btn privacy-btn-ok" id="privacyAccept" type="button" disabled>同意并开始</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== MODAL: 拒绝后提示 ========== -->
+  <div class="privacy-refused" id="privacyRefused" style="display:none;">
+    <div class="privacy-refused-card">
+      <div class="privacy-refused-icon">⛔</div>
+      <div class="privacy-refused-title">无法继续游戏</div>
+      <div class="privacy-refused-text">您必须同意《隐私政策》才能使用本游戏。请返回 TapTap 关闭游戏,或重新阅读后同意。</div>
+      <button class="privacy-btn privacy-btn-ok" id="privacyReRead" type="button">重新阅读</button>
+    </div>
+  </div>
+
 </div>
 
 <!-- BGM 音频元素 -->
 <audio id="bgm" preload="none" loop></audio>
 
-<!-- 脚本顺序：配置 → 状态 → 广告 → UI → 音频 → 主循环 -->
+<!-- 脚本顺序：配置 → 状态 → 广告 → UI → 音频 → 隐私 → 主循环 -->
 <script src="js/config.js"></script>
 <script src="js/main.js"></script>
 <script src="js/ad.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/audio.js"></script>
+<script src="js/privacy.js"></script>
 <script src="js/app.js"></script>
 
 </body>

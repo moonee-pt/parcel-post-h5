@@ -456,36 +456,40 @@ body { display: flex; align-items: center; justify-content: center; }
   box-shadow: 1px 1px 0 rgba(0,0,0,0.2);
 }
 
-/* ========== PARCEL TIER VARIANTS ========== */
-/* 精品：蓝色盒身 */
+/* ========== PARCEL TIER VARIANTS ==========
+ * 桌面盲盒颜色跟底部 buy-card 颜色对齐:
+ *   ordinary → brown-box   (默认)
+ *   premium  → ink         (黑)
+ *   luxury   → green       (绿)
+ *   epic     → brown-deep  (深棕)
+ *   mythic   → gold        (金)
+ */
+/* 精品：黑色盒身 + 金色条纹 */
 .parcel[data-tier="premium"] .parcel-body {
   background:
-    repeating-linear-gradient(45deg, var(--blue-box) 0 14px, var(--blue-deep) 14px 16px),
-    var(--blue-box);
+    repeating-linear-gradient(45deg, var(--ink) 0 14px, var(--gold) 14px 16px),
+    var(--ink);
 }
 .parcel[data-tier="premium"] .parcel-lid {
-  background: var(--blue-box);
+  background: var(--ink);
 }
 .parcel[data-tier="premium"] .parcel-tag {
-  background: var(--blue-deep);
+  background: var(--ink);
+  color: var(--paper);
 }
 
-/* 豪华：紫色盒身 + 金色丝带 */
+/* 豪华：绿色盒身 */
 .parcel[data-tier="luxury"] .parcel-body {
   background:
-    repeating-linear-gradient(45deg, var(--purple-box) 0 14px, #2E1A3A 14px 16px),
-    var(--purple-box);
+    repeating-linear-gradient(45deg, var(--green) 0 14px, #2F4A2A 14px 16px),
+    var(--green);
 }
 .parcel[data-tier="luxury"] .parcel-lid {
-  background: var(--purple-box);
-}
-.parcel[data-tier="luxury"] .parcel-tape-h,
-.parcel[data-tier="luxury"] .parcel-tape-v {
-  background: var(--gold-bright);
+  background: var(--green);
 }
 .parcel[data-tier="luxury"] .parcel-tag {
-  background: var(--gold-bright);
-  color: var(--ink);
+  background: var(--green);
+  color: var(--paper);
 }
 
 /* 至尊：深棕盒身 + 金色丝带 */
@@ -636,7 +640,7 @@ body { display: flex; align-items: center; justify-content: center; }
 .ad-strip-left {
   display: flex;
   flex-direction: column;  /* lucky-chip + auto-chips 上下堆叠 */
-  align-items: flex-start;
+  align-items: flex-start; /* chip 宽度按内容自适应(幸运值短,自动拆包/补货中) */
   flex: 0 0 auto;
   position: relative;
   z-index: 1;
@@ -655,9 +659,9 @@ body { display: flex; align-items: center; justify-content: center; }
 .auto-chips {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: flex-start; /* chip 宽度按内容自适应 */
   gap: 6px;  /* chip 之间的间距 */
-  padding: 0 18px 8px;  /* 紧贴 ad-strip 下方 */
+  padding: 0 0 8px;  /* 去掉左右内边距,与 lucky-chip 左边缘齐平 */
   flex-shrink: 0;
 }
 .auto-chips .restock-toggle {
@@ -1062,7 +1066,7 @@ body { display: flex; align-items: center; justify-content: center; }
   grid-template-columns: auto 12px;
   gap: 8px;
   align-items: center;
-  align-self: flex-start;
+  align-self: flex-start;  /* 宽度按内容自适应 */
   cursor: pointer;
   font-family: inherit;
   text-align: left;
@@ -1124,6 +1128,18 @@ body { display: flex; align-items: center; justify-content: center; }
   100% { transform: scale(1)    rotate(0deg); }
 }
 
+/* 看视频按钮：持续 pulse 吸睛(参照 BGM 按钮) */
+#btnWatchAd .ad-icon {
+  animation: adPulse 1.8s ease-in-out infinite;
+}
+@keyframes adPulse {
+  0%   { transform: scale(1)    rotate(0deg); }
+  25%  { transform: scale(1.10) rotate(-10deg); }
+  50%  { transform: scale(1)    rotate(0deg); }
+  75%  { transform: scale(1.10) rotate(10deg); }
+  100% { transform: scale(1)    rotate(0deg); }
+}
+
 /* ========== RESET 测试按钮（放在广告按钮下方，简洁小按钮） ========== */
 .reset-btn {
   background: transparent;
@@ -1161,7 +1177,7 @@ body { display: flex; align-items: center; justify-content: center; }
   border: 1.5px solid var(--ink);  /* 统一黑色边框，与 lucky-chip 一致 */
   padding: 7px 10px;
   display: inline-grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: auto auto;  /* 文字+速度 auto,箭头 auto,按内容自适应,不撑开 */
   gap: 8px;
   align-items: center;
   align-self: flex-start;
@@ -1383,6 +1399,36 @@ body { display: flex; align-items: center; justify-content: center; }
   box-shadow: 1.5px 1.5px 0 var(--ink);
 }
 .modal-close:active { transform: translate(1px, 1px); box-shadow: 0.5px 0.5px 0 var(--ink); }
+
+/* 弹窗头部右侧操作组(按钮+叉叉) */
+.modal-head-actions {
+  display: flex; align-items: center; gap: 8px;
+  flex-shrink: 0;
+}
+
+/* 幸运值弹窗"解锁收益分析"按钮：复用 .ad-btn 样式(红边+红圆+▶pulse)
+   .unlocked 状态：保持红色系不变(只是降透明度+停 pulse)，跟"看视频"按钮视觉一致 */
+.ad-btn.lc-unlock-all-btn .ad-icon {
+  /* 跟外面看视频按钮 ▶ 一样的 pulse 动画(已由 #btnWatchAd 规则覆盖时也保留) */
+  animation: adPulse 1.8s ease-in-out infinite;
+}
+.ad-btn.lc-unlock-all-btn.unlocked {
+  background: var(--paper-dark);
+  border-color: var(--red);
+  box-shadow: 3px 3px 0 var(--red);
+  cursor: default;
+  opacity: 0.55;  /* 整体降透明度,表示已激活,不再点击 */
+}
+.ad-btn.lc-unlock-all-btn.unlocked .ad-icon {
+  background: var(--red);  /* 仍保持红圆,与未解锁风格一致 */
+  color: var(--paper);
+  animation: none;  /* 已解锁,停止 pulse */
+  opacity: 0.6;
+}
+.ad-btn.lc-unlock-all-btn.unlocked .ad-t1 {
+  color: var(--red);
+  opacity: 0.7;
+}
 
 .modal-body {
   overflow-y: auto;
@@ -1626,6 +1672,25 @@ body { display: flex; align-items: center; justify-content: center; }
 .lucky-card.premium .lc-info-val.neg,
 .lucky-card.luxury .lc-info-val.neg,
 .lucky-card.epic .lc-info-val.neg { color: #F4A09A; }
+
+/* 幸运值详情：未解锁时的问号 + 锁定卡片状态 */
+.lc-locked {
+  font-family: 'DM Mono', monospace;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ink-soft, #6b6b6b);
+  letter-spacing: 2px;
+  opacity: 0.55;
+  cursor: help;
+  user-select: none;
+}
+.lucky-card.locked {
+  /* 锁定态：保持档位色，但右侧两个数据位变灰 */
+  opacity: 0.95;
+}
+.lucky-card.locked .lc-info-val {
+  opacity: 0.7;
+}
 
 /* 升级按钮 */
 .lc-up-btn {
@@ -1989,6 +2054,7 @@ body { display: flex; align-items: center; justify-content: center; }
   display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; align-items: center;
   box-shadow: 3px 3px 0 var(--ink);
 }
+.skill-card.has-row { grid-template-columns: 40px 1fr minmax(124px, auto); }
 .skill-card.locked { opacity: 0.55; }
 .skill-card.maxed {
   background: var(--ink); color: var(--paper);
@@ -2036,8 +2102,223 @@ body { display: flex; align-items: center; justify-content: center; }
   min-width: 54px; line-height: 1.2; border-radius: 2px;
   min-height: 44px;
 }
-.up-btn .c { color: var(--gold); font-size: 9.5px; font-weight: 500; }
-.up-btn .lb { font-size: 7.5px; opacity: 0.7; letter-spacing: 1px; }
+/* c 行(◉ 200 / ▶)和 lb 行(解锁 / FREE)固定行高,让两个并排按钮内容垂直对齐 */
+.up-btn .c { color: var(--gold); font-size: 9.5px; font-weight: 500; line-height: 13px; min-height: 13px; display: flex; align-items: center; justify-content: center; gap: 2px; }
+.up-btn .lb { font-size: 7.5px; opacity: 0.7; letter-spacing: 1px; line-height: 11px; min-height: 11px; display: flex; align-items: center; justify-content: center; }
+
+/* oneTime 技能的并排按钮容器:付费 + 看广告 */
+.up-btn-row {
+  display: flex; flex-direction: row; gap: 5px; align-items: stretch;
+}
+.up-btn-row .up-btn { flex: 1 1 0; min-width: 0; }
+.up-btn-row .ad-unlock-btn {
+  background: var(--paper);
+  color: var(--red);
+  border-color: var(--red);
+  box-shadow: 2px 2px 0 var(--red);
+  position: relative;
+}
+.up-btn-row .ad-unlock-btn .free-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  line-height: 1;
+}
+.up-btn-row .ad-unlock-btn .free-icon {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--red);
+  color: var(--paper);
+  font-size: 6.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* ▶ 三角视觉上偏左，加 padding 修正让三角居中 */
+  padding-left: 1.5px;
+}
+.up-btn-row .ad-unlock-btn .free-text {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--red);
+}
+.up-btn-row .ad-unlock-btn .c { color: var(--red); }
+.up-btn-row .ad-unlock-btn:hover { background: var(--paper-dark); }
+.up-btn-row .ad-unlock-btn:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--red); }
+
+/* ========== 通关徽章 (主页 topbar) ========== */
+.clear-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-left: 6px; padding: 3px 8px;
+  background: var(--gold);
+  border: 1.5px solid var(--ink);
+  box-shadow: 1.5px 1.5px 0 var(--ink);
+  border-radius: 3px;
+  font-family: 'DM Mono', monospace;
+  font-size: 9.5px; font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 1px;
+  cursor: default;
+  animation: clearBadgePulse 1.8s ease-in-out infinite;
+}
+.clear-badge[hidden] { display: none; }
+.clear-badge .cb-ic { font-size: 12px; }
+@keyframes clearBadgePulse {
+  0%, 100% { transform: translateY(0); box-shadow: 1.5px 1.5px 0 var(--ink); }
+  50%      { transform: translateY(-1px); box-shadow: 2.5px 2.5px 0 var(--ink); }
+}
+
+/* ========== 通关 chip (和"幸运值"/"看视频"同一行，顶部对齐) ========== */
+.clear-chip {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  width: fit-content;
+  min-width: 0;
+  align-self: flex-start;   /* ad-strip row 容器下顶部对齐"幸运值/看视频"那行 */
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 4px 12px;
+  background: var(--gold);
+  border: 1.5px solid var(--ink);
+  box-shadow: 1.5px 1.5px 0 var(--ink);
+  border-radius: 12px;
+  font-family: 'DM Mono', monospace;
+  font-size: 9.5px; font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 1px;
+  cursor: default;
+  animation: clearBadgePulse 1.8s ease-in-out infinite;
+}
+.clear-chip[hidden] { display: none; }
+.clear-chip .cc-ic { font-size: 11px; }
+
+/* ========== 通关 banner (升级页) ========== */
+.clear-banner {
+  display: flex; align-items: center; gap: 12px;
+  margin: 12px 18px 4px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, var(--gold) 0%, #E5C66E 100%);
+  border: 2px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--ink);
+  border-radius: 6px;
+}
+.clear-banner[hidden] { display: none; }
+/* 主页 topbar 标题下版本：跨"看视频"和"幸运值"中间位置 */
+.clear-banner-home {
+  margin: 0 18px 8px;
+  padding: 10px 14px;
+  width: auto;
+  align-self: center;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+.clear-banner-home .cb-ic { font-size: 22px; }
+.clear-banner-home .cb-title { font-size: 12px; }
+.clear-banner-home .cb-sub { font-size: 9.5px; }
+/* 概率面板内嵌版本：去掉外边距，配合 stats-section 一起排 */
+.clear-banner-inline {
+  margin: 4px 0 12px;
+  padding: 10px 14px;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+.clear-banner-inline .cb-ic { font-size: 22px; }
+.clear-banner-inline .cb-title { font-size: 12px; }
+.clear-banner .cb-ic { font-size: 28px; }
+.clear-banner .cb-text { flex: 1; }
+.clear-banner .cb-title {
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 800; font-size: 14px;
+  color: var(--ink); letter-spacing: 0.5px;
+}
+.clear-banner .cb-sub {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; color: var(--ink-soft);
+  margin-top: 2px; letter-spacing: 0.5px;
+}
+
+/* ========== 通关庆祝弹窗 ========== */
+.clear-modal-card {
+  text-align: center;
+  padding: 24px 22px 18px;
+  background: linear-gradient(160deg, var(--gold) 0%, #E5C66E 60%, var(--paper) 100%);
+  border: 2.5px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--ink);
+  max-width: 320px;
+  position: relative;
+}
+.clear-modal-card .clear-modal-art {
+  font-size: 56px;
+  line-height: 1;
+  margin-bottom: 8px;
+  animation: clearTrophy 1.6s ease-in-out infinite;
+}
+@keyframes clearTrophy {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50%      { transform: translateY(-4px) rotate(3deg); }
+}
+.clear-modal-card .clear-modal-title {
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 900; font-size: 22px;
+  color: var(--ink); letter-spacing: 2px;
+  margin-bottom: 4px;
+}
+.clear-modal-card .clear-modal-sub {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: var(--ink-soft);
+  letter-spacing: 1.5px; margin-bottom: 14px;
+}
+.clear-modal-card .clear-modal-body {
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  text-align: left;
+}
+.clear-modal-card .clear-modal-row {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: var(--ink);
+  padding: 4px 0;
+  display: flex; align-items: center; gap: 8px;
+  border-bottom: 1px dashed var(--ink-soft);
+}
+.clear-modal-card .clear-modal-row:last-child { border-bottom: none; }
+.clear-modal-card .clear-modal-row .cmr-ic { font-size: 14px; }
+.clear-modal-card .clear-modal-row.cmr-lucky {
+  color: var(--red);
+  font-weight: 700;
+  background: rgba(212, 175, 55, 0.15);
+  margin: 2px -12px -10px;
+  padding: 6px 12px;
+  border-radius: 0 0 3px 3px;
+  border-bottom: none;
+}
+.clear-modal-card .clear-modal-hint {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; color: var(--ink-soft);
+  letter-spacing: 0.5px;
+  margin-bottom: 14px;
+}
+.clear-modal-card .clear-modal-btn {
+  width: 100%;
+  background: var(--ink); color: var(--paper);
+  border: 2px solid var(--ink);
+  padding: 12px 16px;
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 800; font-size: 14px;
+  letter-spacing: 3px;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 var(--ink);
+  border-radius: 4px;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+.clear-modal-card .clear-modal-btn:hover { background: var(--ink-soft); }
+.clear-modal-card .clear-modal-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
 
 .footer-note {
   text-align: center; padding: 14px 0 4px;
@@ -2358,3 +2639,216 @@ body { display: flex; align-items: center; justify-content: center; }
   margin-bottom: 8px;
 }
 .bgm-global-toggle:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
+
+/* ========== 隐私政策弹窗(首次启动) ========== */
+.privacy-mask {
+  position: absolute; inset: 0;
+  background: rgba(20, 14, 8, 0.78);
+  z-index: 9999;
+  display: none;
+  align-items: center; justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.25s ease;
+}
+.privacy-mask[style*="flex"] { display: flex !important; }
+.privacy-card {
+  width: 100%;
+  max-width: 360px;
+  max-height: 100%;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  box-shadow: 6px 6px 0 var(--ink);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.privacy-head {
+  padding: 14px 16px 10px;
+  border-bottom: 1.5px solid var(--ink);
+  background: var(--paper-light);
+  flex-shrink: 0;
+}
+.privacy-title {
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--ink);
+  letter-spacing: 3px;
+  text-align: center;
+}
+.privacy-body {
+  padding: 14px 16px 12px;
+  overflow-y: auto;
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink);
+}
+.privacy-body::-webkit-scrollbar { display: none; }
+.privacy-intro {
+  margin-bottom: 10px;
+  color: #4a3a26;
+}
+.privacy-emph {
+  font-weight: 700;
+  color: var(--ink);
+}
+.privacy-points {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 12px;
+}
+.privacy-points li {
+  position: relative;
+  padding: 6px 0 6px 20px;
+  font-size: 12.5px;
+  color: #5a4a2f;
+  line-height: 1.6;
+  border-bottom: 1px dashed rgba(58, 40, 23, 0.18);
+}
+.privacy-points li:last-child { border-bottom: none; }
+.privacy-points li::before {
+  content: '▸';
+  position: absolute;
+  left: 0; top: 6px;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+.privacy-link-row { margin-top: 6px; }
+.privacy-link {
+  display: inline-block;
+  color: var(--ink);
+  font-size: 12.5px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 600;
+  min-height: 44px;
+  line-height: 44px;
+  padding: 0 4px;
+}
+.privacy-foot {
+  padding: 12px 16px 14px;
+  border-top: 1.5px solid var(--ink);
+  background: var(--paper-light);
+  flex-shrink: 0;
+}
+.privacy-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 6px 0 10px;
+  user-select: none;
+}
+.privacy-check input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0; height: 0;
+  pointer-events: none;
+}
+.privacy-check-box {
+  width: 22px; height: 22px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 1.5px 1.5px 0 var(--ink);
+  transition: background 0.12s;
+}
+.privacy-check input[type="checkbox"]:checked + .privacy-check-box {
+  background: var(--green, #7ea36b);
+}
+.privacy-check input[type="checkbox"]:checked + .privacy-check-box::after {
+  content: '✓';
+  color: var(--ink);
+  font-weight: 900;
+  font-size: 15px;
+  line-height: 1;
+}
+.privacy-check-text {
+  font-size: 12.5px;
+  color: var(--ink);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.privacy-btns {
+  display: flex;
+  gap: 8px;
+}
+.privacy-btn {
+  flex: 1;
+  min-height: 44px;
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 2px;
+  border: 2px solid var(--ink);
+  cursor: pointer;
+  padding: 0 8px;
+  transition: transform 0.08s, box-shadow 0.08s, background 0.15s, color 0.15s;
+}
+.privacy-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 var(--ink);
+}
+.privacy-btn-ok {
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+.privacy-btn-ok.is-disabled,
+.privacy-btn-ok:disabled {
+  background: var(--ink-soft, #8a7860);
+  color: rgba(244, 232, 208, 0.6);
+  cursor: not-allowed;
+  box-shadow: 1.5px 1.5px 0 var(--ink);
+}
+.privacy-btn-ok.is-disabled:active,
+.privacy-btn-ok:disabled:active {
+  transform: none;
+}
+.privacy-btn-reject {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+/* ========== 拒绝后提示 ========== */
+.privacy-refused {
+  position: absolute; inset: 0;
+  background: rgba(20, 14, 8, 0.85);
+  z-index: 10000;
+  display: flex;
+  align-items: center; justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.2s ease;
+}
+.privacy-refused-card {
+  width: 100%;
+  max-width: 320px;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  box-shadow: 6px 6px 0 var(--ink);
+  padding: 28px 24px 24px;
+  text-align: center;
+  animation: slideUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.privacy-refused-icon {
+  font-size: 44px;
+  margin-bottom: 10px;
+  filter: drop-shadow(2px 2px 0 rgba(0,0,0,0.1));
+}
+.privacy-refused-title {
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--ink);
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+}
+.privacy-refused-text {
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #4a3a26;
+  margin-bottom: 20px;
+}

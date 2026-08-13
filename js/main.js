@@ -172,6 +172,22 @@ function isLuckyMax(tierId) {
   return getLuckyLv(tierId) >= LUCKY.MAX_LEVEL;
 }
 
+/* ========== 通关检测：所有可购买升级全满级 ==========
+ * 范围：所有 SKILL（oneTime + maxLevel）+ 5 档 LUCKY
+ * 通关后游戏仍正常运行（继续拆盲盒、继续赚钱、看广告、存读档等不受影响）
+ */
+function isGameCompleted() {
+  // SKILL：6 个技能全满级
+  for (const id in SKILL) {
+    if (!isMaxLevel(id)) return false;
+  }
+  // LUCKY：5 档全满级
+  for (const tierId in TIER) {
+    if (!isLuckyMax(tierId)) return false;
+  }
+  return true;
+}
+
 /* 升级指定档位的幸运值（首页弹窗调用） */
 function upgradeLucky(tierId) {
   if (isLuckyMax(tierId)) return { ok: false, msg: '已满级' };
@@ -435,7 +451,6 @@ function upgradeSkill(id) {
     State.autoOpenSpeedLv = getSkillLv(id);
     restartAutoOpen();
   }
-  if (id === 'B_autoSell') State.autoSellUnlocked = true;
   if (id === 'B_autoTier') State.autoTierLv = getSkillLv(id);
   if (id === 'B_idleStorageLv') {
     // 扩容仓库：按等级动态计算上限（数值后面会一起调小）
@@ -449,6 +464,31 @@ function upgradeSkill(id) {
   if (id === 'B_restock') {
     State.autoRestockUnlocked = true;
     // 购买后立即尝试准备一个（如果台上空→放台上；台上有→放预备队）
+    tryAutoRestock();
+  }
+  save();
+  return { ok: true };
+}
+
+/* 看广告直接解锁 oneTime 技能（不扣金币）
+ * 走完跟 upgradeSkill 一样的副作用链（State.skillLv+1、自动开启机器人、续包等）
+ */
+function unlockSkillFree(id) {
+  const def = SKILL[id];
+  if (!def) return { ok: false, msg: '技能不存在' };
+  if (!def.oneTime) return { ok: false, msg: '此技能不支持看广告解锁' };
+  if (isMaxLevel(id)) return { ok: false, msg: '已解锁' };
+  if (def.requires && !isSkillUnlocked(def.requires)) {
+    return { ok: false, msg: '先解锁前置技能' };
+  }
+  State.skillLv[id] = getSkillLv(id) + 1;
+  // 同步自动化状态(复用 upgradeSkill 里的副作用链)
+  if (id === 'B_autoOpen') {
+    State.autoOpenUnlocked = true;
+    startAutoOpen();
+  }
+  if (id === 'B_restock') {
+    State.autoRestockUnlocked = true;
     tryAutoRestock();
   }
   save();

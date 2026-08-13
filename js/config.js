@@ -228,13 +228,15 @@ const LUCKY = {
     mythic:   { base: 6000, mult: 1.7 },
   },
   // 每级效果：所有赚钱物品（value > price）获得 +EFFECT * 100 weight
-  // 4 档 EFFECT 接近：让升级体验一致（Lv.0 → Lv.5 约 30~35% → 75~80%）
+  // 设计目标：所有档位 Lv.5 时赚钱概率都接近 90%（主战场普通包 90+，高风险档位 87~90）
+  // 4 档 EFFECT 接近：让升级体验一致
+  // 隐藏款独立加成（HIDDEN_BONUS_PER_LEVEL）不参与 winPct 主要计算
   EFFECT_PER_LEVEL: {
-    ordinary: 0.30,    // 普通包：52% → 91%（独立曲线，缓步）
-    premium:  0.22,    // 精品包：10% → 79%（Lv.1 46% 略亏，Lv.2 61% 转正）
-    luxury:   0.10,    // 豪华包：30% → 77%（Lv.1 50% 持平，Lv.2 61% 转正）
-    epic:     0.085,   // 至尊包：35% → 76%（Lv.1 52% 转正，Lv.2 61% 稳赚）
-    mythic:   0.07,    // 传说包：32% → 75%（Lv.1 50% 持平，Lv.2 60% 转正）
+    ordinary: 0.40,    // 普通包：52% → 93%
+    premium:  0.40,    // 精品包：10% → 87%
+    luxury:   0.40,    // 豪华包：12% → 87%
+    epic:     0.40,    // 至尊包：22% → 88%
+    mythic:   0.40,    // 传说包：32% → 93%
   },
   // 隐藏款单独加成：每档统一 4%/级，满级 5%+（参考 刮个爽 的隐藏款思路）
   // Lv.5 普通包隐藏概率 ≈ 5.5%（让玩家能体验到）
@@ -292,15 +294,6 @@ const SKILL = {
     // 满级 = 5 - 5×0.6 = 2 秒/次
     effect: (lv) => ({ autoIntervalDiscount: lv * 0.6 }),
   },
-  B_autoSell: {
-    id: 'B_autoSell',
-    cat: 'B',
-    name: '自动售卖站',
-    desc: '拆出后自动入账，无需手动',
-    icon: '🏪',
-    oneTime: true, costBase: 5000,
-    defaultOn: true,  // 硬约束：默认开启
-  },
   B_autoTier: {
     id: 'B_autoTier',
     cat: 'B',
@@ -345,7 +338,7 @@ const SKILL_TABS = [
 
 /* ========== 广告（无冷却，想看就看）========== */
 const AD = {
-  REWARD_COIN: 50,
+  REWARD_COIN: 50,  // [已弃用] 实际广告金币由 Ad.getReward() 动态计算（主战场 30 秒期望盈亏）
 };
 
 /* ========== 保底机制（让玩家上头但不动怒）========== */

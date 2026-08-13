@@ -2,6 +2,15 @@
  * ui.js — UI 渲染 + 事件绑定
  * ============================================================ */
 
+/* ---------- 幸运值详情解锁状态（一次性全部解锁）---------- */
+const LUCKY_UNLOCK_KEY = 'parcel_lucky_unlock_v1';
+function isLuckyUnlocked() {
+  return localStorage.getItem(LUCKY_UNLOCK_KEY) === '1';
+}
+function setLuckyUnlocked() {
+  localStorage.setItem(LUCKY_UNLOCK_KEY, '1');
+}
+
 const UI = {
   // 当前技能 tab
   currentTab: 'A',
@@ -13,11 +22,13 @@ const UI = {
     this.renderSkillList();
     this.bindEvents();
     this.refreshCoin();
+    this.refreshAdAmount();  // 显式同步主页看视频金额（兜底，不依赖 _renderCoin）
     this.refreshStatsPreview();
     this.refreshLuckyPreview();
     this.refreshRobotChip();
     this.refreshRestockToggle();
     this.refreshAutoOpenToggle();
+    this.refreshClearBadge();  // 同步通关徽章
     this.renderStorageBadge();  // 初始化挂机存储角标（存储 > 0 才显示）
     this.setupDragScroll(document.getElementById('buyRow'));
   },
@@ -145,27 +156,51 @@ const UI = {
   },
 
   handleBuy(tierId) {
+    const tier = TIER[tierId];
+    // 已有 pending：算退多少钱（pending + nextPending）
+    let refund = 0;
     if (State.pending) {
-      // 还有没拆的，提示一下
-      this.spawnPityTag('restock-fail', '还有盲盒没拆');
-      return;
+      refund += TIER[State.pending.tierId].price;
+      if (State.nextPending) {
+        refund += TIER[State.nextPending.tierId].price;
+      }
     }
-    const result = buyParcel(tierId);
-    if (!result.ok) {
-      // 买不起：明确提示差额
-      if (result.msg === '金币不足') {
-        const tier = TIER[tierId];
-        const need = Math.ceil(tier.price - State.coin);
-        this.spawnPityTag('restock-fail', `金币不足，还差 ${need} 金`);
+    // 先校验：退完还买得起吗
+    if (State.coin + refund < tier.price) {
+      const need = tier.price - State.coin;
+      if (refund > 0) {
+        this.spawnPityTag('restock-fail', `金币不足，还差 ${need} ◉（退还 ${refund} ◉ 后仍不够）`);
       } else {
-        this.spawnPityTag('restock-fail', result.msg);
+        this.spawnPityTag('restock-fail', `金币不足，还差 ${need} ◉`);
       }
       return;
     }
-    // 渲染盲盒
+    // 真退 + 真买
+    if (State.pending) {
+      if (State.nextPending) State.nextPending = null;
+      State.pending = null;
+      State.coin += refund;
+    }
+    State.coin -= tier.price;
+    State.pending = { tierId, ts: Date.now() };
+    save();
+    // 视觉：刷新桌面盲盒
     this.showParcel(tierId);
     this.refreshCoin();
     this.refreshBuyRow();
+    // 重建预备队（按当前 autoRestockTier）
+    if (State.autoRestockUnlocked && !State.autoRestockPaused) {
+      if (typeof tryAutoRestock === 'function') {
+        const r = tryAutoRestock();
+        if (r && r.ok && r.where === 'next') {
+          this.refreshCoin();
+        }
+      }
+    }
+    // 提示（退款时显示）
+    if (refund > 0) {
+      this.spawnPityTag('restock', `已购买 ${tier.cn} · 退还 ${refund} ◉`);
+    }
   },
 
   /* ========== 盲盒 ========== */
@@ -204,6 +239,7 @@ const UI = {
     if (!main) return;
     // 把预备队的数据同步到主位
     main.dataset.state = 'sealed';
+    main.dataset.tier = State.pending.tierId;  // 同步档位(切档后预备队可能是新档,颜色要跟着变)
     main.style.display = 'block';
     // 重置封带
     const tapeH = document.getElementById('parcelTapeH');
@@ -315,7 +351,11 @@ const UI = {
     const numEl = document.createElement('div');
     numEl.className = 'auto-float-num' + (net < 0 ? ' minus' : '') + (net === 0 ? ' even' : '');
     const sign = net >= 0 ? '+' : '';
-    numEl.textContent = `${item.emoji} ${sign}${net} ◉`;
+    // ★ 隐藏款 emoji 是 SVG 字符串(textContent 会爆代码),用 📦 兜底
+    const emoji = (item.emoji && typeof item.emoji === 'string' && !item.emoji.startsWith('<'))
+      ? item.emoji
+      : '📦';
+    numEl.textContent = `${emoji} ${sign}${net} ◉`;
     chip.appendChild(numEl);
     requestAnimationFrame(() => numEl.classList.add('go'));
     setTimeout(() => numEl.remove(), 1400);
@@ -413,7 +453,7 @@ const UI = {
     // kind: 'ordinary-pity' | 'restock' | 'restock-fail' | 'lucky' | 'hidden' | 'storage-full' | 'collect'
     const map = {
       'ordinary-pity': { text: '🎁 运气象必中！',  color: 'var(--red)',  dur: 1400 },
-      restock:        { text: '🔄 自动补货',       color: 'var(--green)',  dur: 900 },
+      restock:        { text: customText || '🔄 自动补货', color: 'var(--green)', dur: 900 },
       'restock-fail': { text: customText || '❌ 补货失败', color: 'var(--red)', dur: 1400 },
       lucky:          { text: customText || '🍀 幸运值提升', color: 'var(--green)', dur: 1200 },
       hidden:         { text: '✦ 隐藏款',         color: 'var(--gold-bright)', dur: 1800 },
@@ -455,6 +495,30 @@ const UI = {
         }
       }
     });
+    // 同步主页"看视频"按钮金额(主战场/幸运值变化会影响广告金币)
+    this.refreshAdAmount();
+  },
+
+  /**
+   * 同步主页"看视频"按钮的金额显示(动态跟随主战场)
+   * 顺便同步幸运值弹窗里的"解锁收益分析"按钮
+   */
+  refreshAdAmount() {
+    let reward = 0;
+    try {
+      if (typeof Ad === 'undefined' || typeof Ad.getReward !== 'function') return;
+      reward = Ad.getReward();
+    } catch (e) {
+      console.warn('[UI.refreshAdAmount] getReward 失败:', e);
+      return;
+    }
+    const txt = '+' + formatCoin(reward) + ' ◉';
+    // 主页
+    const main = document.querySelector('#btnWatchAd .ad-t2');
+    if (main) main.textContent = txt;
+    // 幸运值弹窗里
+    const lucky = document.getElementById('luckyUnlockAmount');
+    if (lucky) lucky.textContent = txt;
   },
 
   /* ========== 金币扣除飘字（自动补货扣下一个时用）========== */
@@ -523,6 +587,19 @@ const UI = {
       btnHtml = `<button class="up-btn" style="background:var(--gold);color:var(--ink);border-color:var(--gold);" disabled>
         <span class="c" style="color:var(--ink);">✓</span> ${def.oneTime ? '已激活' : '满级'} <span class="lb" style="color:var(--ink);">${def.oneTime ? 'AUTO' : 'MAX'}</span>
       </button>`;
+    } else if (def.oneTime) {
+      // ★ oneTime 技能：付费按钮 + 看广告按钮(并排)
+      btnHtml = `<div class="up-btn-row">
+        <button class="up-btn" data-skill="${id}">
+          <span class="c">◉</span> ${formatCoin(cost)} <span class="lb">解锁</span>
+        </button>
+        <button class="up-btn ad-unlock-btn" data-ad-skill="${id}" title="看广告直接解锁(不扣金币)">
+          <span class="free-content">
+            <span class="free-icon">▶</span>
+            <span class="free-text">FREE</span>
+          </span>
+        </button>
+      </div>`;
     } else {
       btnHtml = `<button class="up-btn" data-skill="${id}">
         <span class="c">◉</span> ${formatCoin(cost)} <span class="lb">${def.oneTime ? '解锁' : 'UP'}</span>
@@ -533,7 +610,8 @@ const UI = {
     card.className = 'skill-card'
       + (locked ? ' locked' : '')
       + (isMax ? ' maxed' : '')
-      + (cantAfford ? ' cant-afford' : '');
+      + (cantAfford ? ' cant-afford' : '')
+      + (def.oneTime && !isMax && !locked ? ' has-row' : '');
     card.innerHTML = `
       <div class="skill-ic">${def.icon}</div>
       <div class="skill-info">
@@ -549,6 +627,11 @@ const UI = {
     if (!locked && !isMax) {
       const btn = card.querySelector('.up-btn');
       if (btn) btn.addEventListener('click', () => this.handleUpgrade(id));
+      // ★ oneTime 技能的"看广告直接解锁"按钮
+      const adBtn = card.querySelector('.ad-unlock-btn');
+      if (adBtn) {
+        adBtn.addEventListener('click', () => this.handleAdUnlock(id));
+      }
     }
     return card;
   },
@@ -576,9 +659,11 @@ const UI = {
   handleUpgrade(id) {
     const result = upgradeSkill(id);
     if (!result.ok) return;
+    const wasCompleted = (typeof isGameCompleted === 'function') && isGameCompleted();
     this.refreshCoin();
     this.renderSkillList();
     this.refreshStatsPreview();
+    this.refreshClearBadge();  // 升级后检查是否通关
     // 自动拆包机器人解锁时刷新 robot chip + 档位切换 chip + 存储角标
     if (id === 'B_autoOpen') {
       this.refreshRobotChip();
@@ -591,6 +676,54 @@ const UI = {
     if (id === 'B_openSpeed') this.refreshRobotChip();
     // 机器人分拣强化升级后要刷新档位 chip（可能允许切到更高档）
     if (id === 'B_autoTier') this._updateAutoOpenLabel();
+    // ★ 达成通关 → 弹通关庆祝窗（仅在「刚达成」时弹一次，避免重渲重复弹）
+    const nowCompleted = (typeof isGameCompleted === 'function') && isGameCompleted();
+    if (!wasCompleted && nowCompleted) this.spawnClearModal();
+  },
+
+  /**
+   * oneTime 技能的"看广告直接解锁"：跳过金币扣除，只走 Ad.watch
+   */
+  handleAdUnlock(id) {
+    Ad.watch((r) => {
+      if (!r || !r.ok) return;
+      const result = (typeof unlockSkillFree === 'function') ? unlockSkillFree(id) : { ok: false, msg: '函数未加载' };
+      if (!result.ok) {
+        this.spawnPityTag('skill', `❌ ${result.msg || '解锁失败'}`);
+        return;
+      }
+      this.refreshCoin();
+      this.renderSkillList();
+      this.refreshStatsPreview();
+      this.refreshClearBadge();
+      // 复用 handleUpgrade 里的刷新链
+      if (id === 'B_autoOpen') {
+        this.refreshRobotChip();
+        this.refreshAutoOpenToggle();
+        this.renderStorageBadge();
+      }
+      if (id === 'B_restock') this.refreshRestockToggle();
+      this.spawnPityTag('skill', `🎉 ${SKILL[id].name} 已解锁（看广告）`);
+    }, { skipReward: true });
+  },
+
+  /**
+   * 通关徽章:所有 SKILL 满级 + 5 档 LUCKY 满级
+   * 主页 topbar 显示金色"🏆 通关"徽章,升级页显示 banner
+   * 通关后游戏正常运行(继续拆盲盒、看广告、滚雪球都不影响)
+   */
+  refreshClearBadge() {
+    const completed = (typeof isGameCompleted === 'function') && isGameCompleted();
+    // 主页 topbar 下方居中 chip（"看视频"和"幸运值"中间上方）
+    const chip = document.getElementById('clearChip');
+    if (chip) chip.hidden = !completed;
+    // 兼容旧 markup
+    const badge = document.getElementById('clearBadge');
+    if (badge) badge.hidden = !completed;
+    const banner = document.getElementById('clearBanner');
+    if (banner) banner.hidden = !completed;
+    const bannerHome = document.getElementById('clearBannerHome');
+    if (bannerHome) bannerHome.hidden = !completed;
   },
 
   /* ========== 事件绑定 ========== */
@@ -612,6 +745,24 @@ const UI = {
     // 幸运值弹窗
     document.getElementById('btnLucky')?.addEventListener('click', () => this.openLucky());
     document.getElementById('btnLuckyClose')?.addEventListener('click', () => this.closeLucky());
+    // 通关庆祝弹窗
+    document.getElementById('btnClearModalClose')?.addEventListener('click', () => this.closeClearModal());
+    document.getElementById('clearModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'clearModal') this.closeClearModal();
+    });
+    document.getElementById('btnLuckyUnlockAll')?.addEventListener('click', () => {
+      // 已解锁则不响应
+      if (isLuckyUnlocked()) return;
+      // ★ 看广告纯解锁（不送金币）
+      Ad.watch((r) => {
+        if (!r || !r.ok) return;
+        setLuckyUnlocked();
+        this.spawnPityTag('lucky', `📊 收益数据已全部解锁`);
+        // 重新渲染弹窗内容 + 同步按钮状态
+        this.renderLuckyContent();
+        this.refreshLuckyUnlockBtn();
+      }, { skipReward: true });
+    });
     document.getElementById('luckyModal')?.addEventListener('click', (e) => {
       if (e.target.id === 'luckyModal') this.closeLucky();
     });
@@ -667,13 +818,12 @@ const UI = {
   },
 
   handleAd() {
-    const r = Ad.watch();
-    if (!r.ok) return;
-    this.refreshCoin();
-    this.refreshBuyRow();
-    this.refreshSkillList();
-    // 金币 bump
-    this.refreshCoin();
+    Ad.watch((r) => {
+      if (!r || !r.ok) return;
+      this.refreshCoin();
+      this.refreshBuyRow();
+      this.refreshSkillList();
+    });
   },
 
   /* ========== 当前属性入口 + Modal ========== */
@@ -943,6 +1093,30 @@ const UI = {
     } else {
       this._updateRestockLabel();
       this.refreshBuyRow();  // 同步 buy-row 上"自动补货中"标签位置
+      // 修复切档不生效 bug: 立即替换预备队(否则 nextPending 永远占着旧档位)
+      if (State.autoRestockUnlocked && !State.autoRestockPaused && State.nextPending && State.nextPending.tierId !== tierId) {
+        // 退旧档位的钱
+        const oldTier = TIER[State.nextPending.tierId];
+        State.coin += oldTier.price;
+        State.nextPending = null;
+        // 用新档位重建预备队
+        if (typeof tryAutoRestock === 'function') {
+          const r = tryAutoRestock();
+          if (r && r.ok && r.where === 'next') {
+            this.refreshCoin();
+            this.spawnPityTag('restock', `已切换为 ${TIER[tierId].cn} · 退还 ${oldTier.cn} ${oldTier.price} ◉`);
+          } else if (r && r.reason === 'no-coin') {
+            this.spawnPityTag('restock-fail', `金币不足，下次自动补货时再买 ${TIER[tierId].cn}`);
+            this.refreshCoin();
+          } else {
+            this.spawnPityTag('restock', `已切换为 ${TIER[tierId].cn} · 退还 ${oldTier.cn} ${oldTier.price} ◉`);
+            this.refreshCoin();
+          }
+        }
+      } else {
+        // 没预备队 或 切到同档位 → 简单提示
+        this.spawnPityTag('restock', `已切换为 ${TIER[tierId].cn}`);
+      }
     }
     // 视觉反馈：标签短暂变红
     const lblId = stateKey === 'autoOpenTier' ? 'autoOpenTierLabel' : 'restockTierLabel';
@@ -984,11 +1158,31 @@ const UI = {
   /* ========== 幸运值弹窗 ========== */
   openLucky() {
     this.renderLuckyContent();
+    this.refreshLuckyUnlockBtn();
     document.getElementById('luckyModal')?.classList.add('show');
   },
 
   closeLucky() {
     document.getElementById('luckyModal')?.classList.remove('show');
+  },
+
+  /**
+   * 同步头部"解锁收益分析"按钮状态
+   * 已解锁 → 灰显, 文案改为"已开启", 不响应点击
+   * 未解锁 → 橙色高亮, ▶ icon 持续 pulse
+   */
+  refreshLuckyUnlockBtn() {
+    const btn = document.getElementById('btnLuckyUnlockAll');
+    if (!btn) return;
+    if (isLuckyUnlocked()) {
+      btn.classList.add('unlocked');
+      btn.disabled = true;
+      btn.title = '已解锁所有档位的收益数据';
+    } else {
+      btn.classList.remove('unlocked');
+      btn.disabled = false;
+      btn.title = '看广告解锁所有档位的赚钱概率和平均赚';
+    }
   },
 
   /* ========== 破产处理：金币 ≤ 0 → 弹窗让玩家看广告续命或重置 ========== */
@@ -1001,9 +1195,9 @@ const UI = {
     modal.innerHTML = `
       <div class="modal-card bankrupt-card">
         <div class="bankrupt-title">💸 破产了！</div>
-        <div class="bankrupt-desc">金币已经见底<br/>看广告领 30 金币继续 / 或全部清零重开</div>
+        <div class="bankrupt-desc">金币已经见底<br/>看广告领 ${Ad.getReward()} 金币继续 / 或全部清零重开</div>
         <div class="bankrupt-actions">
-          <button class="bnk-btn bnk-ad" id="bnkAd">📺 看广告 +30 ◉</button>
+          <button class="bnk-btn bnk-ad" id="bnkAd">📺 看广告 +${Ad.getReward()} ◉</button>
           <button class="bnk-btn bnk-reset" id="bnkReset">⟳ 全部清零重开</button>
           <button class="bnk-btn bnk-close" id="bnkClose">关闭</button>
         </div>
@@ -1012,12 +1206,12 @@ const UI = {
     document.body.appendChild(modal);
     const close = () => modal.remove();
     document.getElementById('bnkAd')?.addEventListener('click', () => {
-      State.coin = 30;
-      save();
-      this.refreshCoin();
-      this.refreshBuyRow();
-      this.spawnPityTag('lucky', '📺 广告奖励 +30 ◉');
-      close();
+      // 走激励视频：用户完整观看后才发奖并关闭弹窗
+      Ad.watch((r) => {
+        if (!r || !r.ok) return;
+        this.spawnPityTag('lucky', `📺 广告奖励 +${r.reward} ◉`);
+        close();
+      });
     });
     document.getElementById('bnkReset')?.addEventListener('click', () => {
       if (confirm('确定清零所有进度重新开始？')) {
@@ -1034,6 +1228,7 @@ const UI = {
     const stats = getCurrentStats();
     // 所有档位（普通/精品/豪华/至尊/传说）— 跟 tierPicker 弹窗保持一致
     const order = Object.keys(TIER);
+    const isUnlocked = isLuckyUnlocked();
     body.innerHTML = '<div class="lucky-cards">' + order.map(tierId => {
       const tier = TIER[tierId];
       const t = stats.tiers[tierId];
@@ -1060,11 +1255,18 @@ const UI = {
           <span class="luc-cost"><span class="c">◉</span> ${formatCoin(cost)}</span>
         </button>`;
       }
-      // 期望盈亏
+      // 平均赚(原"期望盈亏", 改用口语)
       const evClass = t.expectedProfit >= 0 ? 'pos' : 'neg';
       const evSign = t.expectedProfit >= 0 ? '+' : '';
+      // 按解锁状态决定显示(全局一次性解锁)
+      const winPctDisplay = isUnlocked
+        ? `${winPct.toFixed(1)}%`
+        : `<span class="lc-locked" title="看广告解锁">?</span>`;
+      const evDisplay = isUnlocked
+        ? `<span class="${evClass}">${evSign}${t.expectedProfit.toFixed(1)}</span>`
+        : `<span class="lc-locked" title="看广告解锁">?</span>`;
       // 跟 tierPicker 弹窗同款卡片结构（restock-card 视觉），但底部加等级 + 升级
-      return `<div class="lucky-card restock-card ${tier.className || ''} ${isMax ? 'maxed' : ''}">
+      return `<div class="lucky-card restock-card ${tier.className || ''} ${isMax ? 'maxed' : ''} ${isUnlocked ? 'unlocked' : 'locked'}">
         <div class="rc-head">
           <div class="rc-head-l">
             <span class="rc-ic">${tier.icon}</span>
@@ -1081,15 +1283,11 @@ const UI = {
         <div class="lc-info">
           <div class="lc-info-block">
             <span class="lc-info-label">赚钱概率</span>
-            <span class="lc-info-val">${winPct.toFixed(1)}%</span>
-          </div>
-          <div class="lc-info-block" style="text-align:center;">
-            <span class="lc-info-label">期望盈亏</span>
-            <span class="lc-info-val ${evClass}">${evSign}${t.expectedProfit.toFixed(1)}</span>
+            <span class="lc-info-val">${winPctDisplay}</span>
           </div>
           <div class="lc-info-block" style="text-align:right;">
-            <span class="lc-info-label">ROI</span>
-            <span class="lc-info-val ${evClass}">${evSign}${(t.expectedROI * 100 - 100).toFixed(0)}%</span>
+            <span class="lc-info-label">平均赚</span>
+            <span class="lc-info-val">${evDisplay}</span>
           </div>
           <div style="display:flex;align-items:center;">
             ${btnHtml}
@@ -1111,10 +1309,12 @@ const UI = {
       this.spawnPityTag('restock-fail', result.msg);
       return;
     }
+    const wasCompleted = (typeof isGameCompleted === 'function') && isGameCompleted();
     // 升级成功：重渲染弹窗 + 首页预览 + 金币
     this.refreshCoin();
     this.refreshLuckyPreview();
     this.renderLuckyContent();
+    this.refreshClearBadge();  // 幸运值升满也可能通关
     // 顺手刷新属性弹窗的内容（如果在打开状态）
     if (document.getElementById('statsModal')?.classList.contains('show')) {
       this.renderStatsContent(getCurrentStats());
@@ -1122,6 +1322,19 @@ const UI = {
     // 升级成功飘字
     const tier = TIER[tierId];
     if (tier) this.spawnPityTag('lucky', `🍀 ${tier.cn} 幸运 Lv.${getLuckyLv(tierId)}`);
+    // ★ 达成通关 → 弹通关庆祝窗（仅在「刚达成」时弹一次）
+    const nowCompleted = (typeof isGameCompleted === 'function') && isGameCompleted();
+    if (!wasCompleted && nowCompleted) this.spawnClearModal();
+  },
+
+  /* ========== 通关庆祝弹窗（每次通关只弹一次）========== */
+  spawnClearModal() {
+    const modal = document.getElementById('clearModal');
+    if (!modal) return;
+    modal.classList.add('show');
+  },
+  closeClearModal() {
+    document.getElementById('clearModal')?.classList.remove('show');
   },
 
   /* ========== 重新开始（测试用：清存档并刷新）========== */
@@ -1129,6 +1342,8 @@ const UI = {
     if (!confirm('确定清除存档重新开始？所有金币、等级、幸运值都会清空。')) return;
     try {
       localStorage.removeItem(CONFIG.SAVE_KEY);
+      // ★ 顺带清掉看广告解锁收益分析的状态，否则重置后还显示
+      localStorage.removeItem(LUCKY_UNLOCK_KEY);
     } catch (e) {
       console.warn('清除存档失败', e);
     }
@@ -1210,8 +1425,6 @@ const UI = {
     // === 第 4 段：自动化 ===
     const autoOpenText = stats.autoOpenUnlocked ? `已解锁 · ${stats.autoInterval.toFixed(1)} 秒/次` : '未解锁';
     const autoOpenCls = stats.autoOpenUnlocked ? '' : 'base';
-    const autoSellText = stats.autoSellUnlocked ? '已开启' : '未开启';
-    const autoSellCls = stats.autoSellUnlocked ? '' : 'base';
     // 机器人分拣强化：显示当前等级 + 最高可拆档位
     const autoTierMax = (typeof SKILL !== 'undefined' && SKILL.B_autoTier) ? SKILL.B_autoTier.maxLevel : 4;
     const autoTierLv = stats.autoTierLv || 0;
@@ -1227,11 +1440,11 @@ const UI = {
       <div class="sec-title"><span class="sec-ic">🤖</span>自动化</div>
       <div class="attr-row"><span class="ar-name">自动拆包机器人</span><span class="ar-val ${autoOpenCls}">${autoOpenText}</span></div>
       <div class="attr-row"><span class="ar-name">自动补货</span><span class="ar-val ${autoRestockCls}">${autoRestockText}</span></div>
-      <div class="attr-row"><span class="ar-name">自动售卖站</span><span class="ar-val ${autoSellCls}">${autoSellText}</span></div>
       <div class="attr-row"><span class="ar-name">机器人分拣强化</span><span class="ar-val ${autoTierCls}">${autoTierText}</span></div>
     </div>`;
 
     body.innerHTML = `
+      ${completedHtml}
       <div class="stats-section">
         <div class="sec-title"><span class="sec-ic">📦</span>开箱概率（每档物品实际掉率）</div>
         ${tiersHtml}
