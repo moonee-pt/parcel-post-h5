@@ -18,6 +18,14 @@ const CONFIG = {
 
   // 自动存档 key
   SAVE_KEY: 'parcel_post_save_v1',
+
+  // 音量设置（独立持久化 key，不进主存档）
+  AUDIO: {
+    BGM_VOL_KEY: 'parcel_audio_bgm_v1',
+    SFX_VOL_KEY: 'parcel_audio_sfx_v1',
+    DEFAULT_BGM: 0.8,     // 背景音乐默认音量
+    DEFAULT_SFX: 0.8,     // 音效默认音量（与 BGM 一致）
+  },
 };
 
 /* ========== 隐藏款 SVG icon（复古印刷 + 硬边墨线风格，跨设备一致）========== */
@@ -102,13 +110,20 @@ const ICON = {
   </svg>`,
 };
 
-/* ========== 三档盲盒 ==========
- * 设计原则：普通包小幅正期望（保证可玩），精品/豪华初始为负（需要升幸运值扭亏）
- *   普通包：基线 +1.9 金（赚钱概率 52%），满级幸运 → +4.7 金
- *   精品包：基线 -24 金，满级幸运 → -10.3 金（仍亏但大幅回升）
- *   豪华包：基线 -100 金，满级幸运 → -75.4 金（仍亏，高端永远赌）
- * 物品按价值升序：坏物（value=0）在最上面，最稀有物在最下面
- * 幸运值：所有 value > price 的物品权重都增加，亏钱物品相对概率下降
+/* ========== 五档盲盒 ==========
+ * 设计原则：
+ *   1) 每档用独立物品池（避免名车钥匙/显卡等跨档重名重 emoji）
+ *   2) 物品价值 v2 调整：保证 Lv.5 时单包净赚为正（稳赚）
+ *   3) 隐藏款不参与 winPct/期望计算（只作彩蛋，不影响主经济）
+ *   4) 概率设计：Lv.0 偏低（10-22%），强迫升幸运值；Lv.5 ≈ 80%
+ *   5) 物品按价值升序：坏物（value=0）在最上面，最稀有物在最下面
+ *   6) 幸运值：所有 value > price 的物品权重都增加，亏钱物品相对概率下降
+ * 期望目标（不含 A_value）：
+ *   普通 Lv.5  ≈ +14     普通 Lv.0  ≈ +2.5
+ *   精品 Lv.5  ≈ +57     精品 Lv.0  ≈ -22
+ *   豪华 Lv.5  ≈ +60     豪华 Lv.0  ≈ -80
+ *   至尊 Lv.5  ≈ +300    至尊 Lv.0  ≈ -300
+ *   传说 Lv.5  ≈ +1500   传说 Lv.0  ≈ -800
  * ========================== */
 const TIER = {
   ordinary: {
@@ -127,7 +142,7 @@ const TIER = {
       { name: '耳机',    emoji: '🎧', weight: 17, value: 40, rare: true },
       { name: '神秘金袋', emoji: ICON.moneyBag, weight: 0.3, value: 188, hidden: true },
     ],
-    // 期望 11.94，利润 +1.94；赚钱概率 52%（小玩具+耳机）
+    // Lv.0 期望 ≈ 12.5, 盈亏 +2.5；赚钱概率 ≈ 52%（小玩具+耳机）
   },
   premium: {
     id: 'premium',
@@ -141,29 +156,31 @@ const TIER = {
       { name: '砖头',    emoji: '🧱', weight: 40, value: 0,  bad: true },
       { name: '日用品',  emoji: '🧴', weight: 30, value: 15 },
       { name: '键盘',    emoji: '⌨️', weight: 20, value: 50 },
-      { name: '手表',    emoji: '⌚', weight: 7,  value: 100 },
-      { name: '手机',    emoji: '📱', weight: 3,  value: 150, rare: true },
-      { name: '钻石耳钉', emoji: ICON.diamond, weight: 0.2, value: 888, hidden: true },
+      { name: '电子表',  emoji: '⌚', weight: 7,  value: 100 },
+      { name: '手机',    emoji: '📞', weight: 3,  value: 150, rare: true },
+      { name: '钻石耳钉', emoji: ICON.diamond, weight: 0.2, value: 500, hidden: true },
     ],
+    // Lv.0 期望 ≈ 28, 盈亏 -22；赚钱概率 ≈ 10%
   },
   luxury: {
     id: 'luxury',
     label: 'LUXURY',
     cn: '豪华盲盒',
     price: 200,
-    icon: '📦',           // 统一所有档位 icon
+    icon: '📦',
     className: 'luxury',
     riskLabel: '搏一搏',
     items: [
-      { name: '空盒',    emoji: '📭', weight: 40, value: 0,  bad: true },
+      { name: '碎石',  emoji: '🪨', weight: 40, value: 0,  bad: true },
       { name: '小家电',  emoji: '🍳', weight: 30, value: 50 },
       { name: '平板',    emoji: '💻', weight: 18, value: 120 },
-      { name: '金饰',    emoji: '💍', weight: 9,  value: 300 },
-      { name: '笔记本',  emoji: '🖥️', weight: 3,  value: 1200, rare: true },
-      { name: '金皇冠', emoji: ICON.goldCrown, weight: 0.1, value: 8888, hidden: true },
+      { name: '金饰',    emoji: '💠', weight: 9,  value: 180 },
+      { name: '笔记本',  emoji: '🖥️', weight: 3,  value: 700, rare: true },
+      { name: '金皇冠', emoji: ICON.goldCrown, weight: 0.1, value: 2000, hidden: true },
     ],
+    // Lv.0 期望 ≈ 120, 盈亏 -80；赚钱概率 ≈ 12%
   },
-  // ===== 新增两个档位（4 / 5）=====
+  // ===== 第 4 档（至尊）=====
   epic: {
     id: 'epic',
     label: 'EPIC',
@@ -173,16 +190,16 @@ const TIER = {
     className: 'epic',
     riskLabel: '土豪专属',
     items: [
-      { name: '空盒',    emoji: '📭', weight: 45, value: 0,    bad: true },
-      { name: '日用品',  emoji: '🧴', weight: 20, value: 200 },
-      { name: '名表',    emoji: '⌚', weight: 18, value: 600 },
-      { name: '显卡',    emoji: '🎮', weight: 12, value: 1500 },
-      { name: '名车钥匙', emoji: '🚗', weight: 4,  value: 4000, rare: true },
-      { name: '金砖',    emoji: ICON.goldBar, weight: 1,  value: 20000, hidden: true },
+      { name: '废铜',  emoji: '🪙', weight: 45, value: 0,    bad: true },
+      { name: '围巾',    emoji: '🧣', weight: 20, value: 200 },
+      { name: '钢笔',    emoji: '🖋️', weight: 18, value: 600 },
+      { name: '名牌包',  emoji: '👜', weight: 12, value: 1500 },
+      { name: '名车钥匙', emoji: '🚗', weight: 4,  value: 3000, rare: true },
+      { name: '翡翠项链', emoji: ICON.goldBar, weight: 1,  value: 8000, hidden: true },
     ],
-    // 期望：200*0.20 + 600*0.18 + 1500*0.12 + 4000*0.04 = 40+108+180+160 = 488
-    // 概率：赚钱 54%（日用品+名表+显卡+名车）; 期望盈亏 -512（成本 1000）；略亏但有隐藏款
+    // Lv.0 期望 ≈ 700, 盈亏 -300；赚钱概率 ≈ 17%
   },
+  // ===== 第 5 档（传说）=====
   mythic: {
     id: 'mythic',
     label: 'MYTHIC',
@@ -192,15 +209,15 @@ const TIER = {
     className: 'mythic',
     riskLabel: '一念天堂',
     items: [
-      { name: '空盒',    emoji: '📭', weight: 50, value: 0,     bad: true },
-      { name: '小家电',  emoji: '🍳', weight: 18, value: 800 },
-      { name: '名表',    emoji: '⌚', weight: 14, value: 2500 },
-      { name: '显卡',    emoji: '🎮', weight: 10, value: 6000 },
-      { name: '名车钥匙', emoji: '🚗', weight: 6,  value: 15000, rare: true },
-      { name: '房产证',  emoji: '🏠', weight: 1.5, value: 80000, rare: true },
-      { name: '宇宙飞船票', emoji: ICON.ufo, weight: 0.5, value: 200000, hidden: true },
+      { name: '假票',    emoji: '🎫', weight: 50, value: 0,     bad: true },
+      { name: '蓝牙音箱', emoji: '🎵', weight: 18, value: 800 },
+      { name: '金表',    emoji: '🕰️', weight: 14, value: 2500 },
+      { name: '游戏机',  emoji: '🎮', weight: 10, value: 6000 },
+      { name: '直升机钥匙', emoji: '🚁', weight: 6,  value: 9000, rare: true },
+      { name: '房产证',  emoji: '🏠', weight: 1.5, value: 20000, rare: true },
+      { name: '飞船票',  emoji: ICON.ufo, weight: 0.5, value: 50000, hidden: true },
     ],
-    // 概率：赚钱 50%；期望盈亏 -1000（成本 5000）；隐藏款 200000 = 0.5% 概率
+    // Lv.0 期望 ≈ 4200, 盈亏 -800；赚钱概率 ≈ 18%
   },
 };
 
@@ -228,19 +245,20 @@ const LUCKY = {
     mythic:   { base: 6000, mult: 1.7 },
   },
   // 每级效果：所有赚钱物品（value > price）获得 +EFFECT * 100 weight
-  // 设计目标：所有档位 Lv.5 时赚钱概率都接近 90%（主战场普通包 90+，高风险档位 87~90）
+  // 隐藏款单独加成（HIDDEN_BONUS_PER_LEVEL），不参与 winPct/期望计算（只作彩蛋）
+  // 设计目标：所有档位 Lv.5 时赚钱概率都接近 80%（中高档 78%，普通 88%）
   // 4 档 EFFECT 接近：让升级体验一致
-  // 隐藏款独立加成（HIDDEN_BONUS_PER_LEVEL）不参与 winPct 主要计算
   EFFECT_PER_LEVEL: {
-    ordinary: 0.40,    // 普通包：52% → 93%
-    premium:  0.40,    // 精品包：10% → 87%
-    luxury:   0.40,    // 豪华包：12% → 87%
-    epic:     0.40,    // 至尊包：22% → 88%
-    mythic:   0.40,    // 传说包：32% → 93%
+    ordinary: 0.30,    // 普通包：52% → 88%（主战场，曲线更平缓）
+    premium:  0.30,    // 精品包：10% → 78%
+    luxury:   0.30,    // 豪华包：12% → 78%
+    epic:     0.30,    // 至尊包：17% → 80%
+    mythic:   0.30,    // 传说包：18% → 78%
   },
-  // 隐藏款单独加成：每档统一 4%/级，满级 5%+（参考 刮个爽 的隐藏款思路）
-  // Lv.5 普通包隐藏概率 ≈ 5.5%（让玩家能体验到）
-  HIDDEN_BONUS_PER_LEVEL: 0.04,
+  // 隐藏款单独加成：每级 +1.0% 权重（Lv.5 时最大概率约 1.5%，所有档位 ≤ 2%）
+  // 0.015 → 0.01：上一版 luxury 满级隐藏达 2.95%、epic 2.09%，违反"≤2%"约束
+  // 0.01 后各档满级隐藏约：ordinary 1.3% / premium 1.3% / luxury 1.99% / epic 1.5% / mythic 1.0%
+  HIDDEN_BONUS_PER_LEVEL: 0.01,
 };
 
 /* ========== 技能树（升级页：只保留价值加成百分比 + 自动化）==========
@@ -275,11 +293,10 @@ const SKILL = {
   },
   B_autoOpen: {
     id: 'B_autoOpen',
-    cat: 'B',
     name: '自动拆包机器人',
     desc: '每 5 秒自动买 1 个普通盲盒并拆开（后续用「机器人分拣强化」扩展档位）',
     icon: '🤖',
-    oneTime: true, costBase: 350,
+    oneTime: true, costBase: 500,
   },
   B_openSpeed: {
     id: 'B_openSpeed',
@@ -347,4 +364,22 @@ const AD = {
 // 其他档位（精品/豪华/至尊/传说）无保底
 const PITY = {
   ORDINARY_PROFIT_STREAK: 5,
+};
+
+/* ========== 图鉴奖励（每档全收齐 + 全部 5 档收齐）==========
+ * 设计原则：奖励随档位通胀——高档盲盒难抽齐，奖励更高
+ * 档位奖励 = 盲盒价 × N 倍
+ *   普通（10×30=300）   精品（50×30=1500）   豪华（200×30=6000）
+ *   至尊（1000×30=30000） 传说（5000×30=150000）
+ * 全图鉴 = 5 档奖励之和（约 187.8k），激励玩家把所有档位都玩
+ * ========================== */
+const CODEX = {
+  TIER_REWARD: {
+    ordinary: 300,     // 普通包单次 10 × 30
+    premium:  1500,    // 精品包单次 50 × 30
+    luxury:   6000,    // 豪华包单次 200 × 30
+    epic:     30000,   // 至尊包单次 1000 × 30
+    mythic:   150000,  // 传说包单次 5000 × 30
+  },
+  ALL_REWARD: 200000,  // 集齐 5 档全图鉴一次性奖励
 };

@@ -40,6 +40,12 @@ const State = {
   noRareStreak: 0,        // 保留兼容旧存档（已废弃）
   // 保底机制：只有普通包裹有"5 次没出正收益 → 必出"
   ordNoProfitStreak: 0,
+  // 图鉴：{ tierId: { itemName: true } } - 已抽到过的物品
+  collection: { ordinary: {}, premium: {}, luxury: {}, epic: {}, mythic: {} },
+  // 图鉴：每档奖励是否已领取
+  collectionRewards: { ordinary: false, premium: false, luxury: false, epic: false, mythic: false },
+  // 图鉴：全图鉴（5 档全收齐）奖励是否已领取
+  allCollectionReward: false,
 };
 
 /* ---------- 存档 ---------- */
@@ -61,6 +67,9 @@ function save() {
       idleStorage: State.idleStorage,
       idleStorageMax: State.idleStorageMax,
       ordNoProfitStreak: State.ordNoProfitStreak,
+      collection: State.collection,
+      collectionRewards: State.collectionRewards,
+      allCollectionReward: State.allCollectionReward,
     };
     localStorage.setItem(CONFIG.SAVE_KEY, JSON.stringify(data));
   } catch (e) {
@@ -102,14 +111,46 @@ function load() {
     if (typeof data.idleStorage === 'number') State.idleStorage = data.idleStorage;
     if (typeof data.idleStorageMax === 'number') State.idleStorageMax = data.idleStorageMax;
     if (typeof data.ordNoProfitStreak === 'number') State.ordNoProfitStreak = data.ordNoProfitStreak;
+    // 图鉴数据迁移：旧存档没有 → 补空对象
+    if (data.collection && typeof data.collection === 'object') {
+      for (const tid in TIER) {
+        if (data.collection[tid] && typeof data.collection[tid] === 'object') {
+          State.collection[tid] = data.collection[tid];
+        }
+      }
+    }
+    if (data.collectionRewards && typeof data.collectionRewards === 'object') {
+      for (const tid in TIER) {
+        if (typeof data.collectionRewards[tid] === 'boolean') {
+          State.collectionRewards[tid] = data.collectionRewards[tid];
+        }
+      }
+    }
+    if (typeof data.allCollectionReward === 'boolean') State.allCollectionReward = data.allCollectionReward;
   } catch (e) {
     console.warn('读档失败', e);
   }
 }
 
 /* ---------- 工具 ---------- */
+// 金币格式化：< 10000 用千分位逗号（"1,234"）；>= 10000 用 k/M/B 单位（"23k", "1.2M", "5B"）
+// 后端 State.coin 始终保持精确数字，仅展示层简化
 function formatCoin(n) {
-  return Math.floor(n).toLocaleString('en-US');
+  n = Math.floor(n);
+  if (n < 0) return '-' + formatCoin(-n);
+  if (n < 10000) return n.toLocaleString('en-US');
+  const units = ['', 'k', 'M', 'B', 'T'];
+  let i = 0;
+  let v = n;
+  while (v >= 1000 && i < units.length - 1) {
+    v /= 1000;
+    i++;
+  }
+  // v < 1000：>= 100 整数；>= 10 整数；< 10 一位小数（去尾零）
+  let s;
+  if (v >= 10) s = Math.round(v).toString();
+  else s = (Math.round(v * 10) / 10).toString();
+  return s + units[i];
 }
 
 function getSkillLv(id) {
@@ -240,7 +281,9 @@ function luckyWeightBonus(tierId, item) {
  * 保底规则：只有普通包裹（10 块）有保底——连续 5 次没出"小玩具/耳机"（正收益物品），下次必出其一
  * 其他档位（精品/豪华/至尊/传说）无保底，靠玩家幸运值升级和自身财商
  * ============================================================ */
-function rollItem(tierId) {
+function rollItem(tierId, opts = {}) {
+  // opts.collectToCodex: 是否计入图鉴（机器人自动拆不计入，玩家手动拆计入）
+  const collectToCodex = opts.collectToCodex !== false;
   const tier = TIER[tierId];
   const fx = getEffects();
   const items = tier.items.map(it => {
@@ -278,6 +321,11 @@ function rollItem(tierId) {
     const isProfit = picked.name === '小玩具' || picked.name === '耳机';
     State.ordNoProfitStreak = isProfit ? 0 : ((State.ordNoProfitStreak || 0) + 1);
   }
+  // === 图鉴：标记物品为已收集（隐藏款也计入）===
+  // 但机器人自动拆的物品不计入图鉴
+  if (collectToCodex) {
+    markItemCollected(tierId, picked.name);
+  }
   save();
 
   return {
@@ -288,6 +336,57 @@ function rollItem(tierId) {
     isHidden: !!picked.hidden,
     isOrdinaryPity,
   };
+}
+
+/* ---------- 图鉴：标记物品已抽到 ---------- */
+function markItemCollected(tierId, itemName) {
+  if (!State.collection[tierId]) State.collection[tierId] = {};
+  State.collection[tierId][itemName] = true;
+}
+
+/* ---------- 图鉴：查询某档已收集的物品数 / 总数 ---------- */
+function getCodexProgress(tierId) {
+  const tier = TIER[tierId];
+  if (!tier) return { collected: 0, total: 0, ratio: 0, complete: false };
+  const total = tier.items.length;
+  const collected = Object.keys(State.collection[tierId] || {}).length;
+  return {
+    collected: Math.min(collected, total),
+    total,
+    ratio: total > 0 ? collected / total : 0,
+    complete: collected >= total,
+  };
+}
+
+/* ---------- 图鉴：是否全部 5 档都已收齐 ---------- */
+function isAllCodexComplete() {
+  for (const tierId in TIER) {
+    if (!getCodexProgress(tierId).complete) return false;
+  }
+  return true;
+}
+
+/* ---------- 图鉴：领取某档奖励 ---------- */
+function claimCodexTierReward(tierId) {
+  if (State.collectionRewards[tierId]) return { ok: false, msg: '已领取' };
+  const prog = getCodexProgress(tierId);
+  if (!prog.complete) return { ok: false, msg: '未集齐' };
+  const reward = CODEX.TIER_REWARD[tierId] || 0;
+  State.coin += reward;
+  State.collectionRewards[tierId] = true;
+  save();
+  return { ok: true, amount: reward };
+}
+
+/* ---------- 图鉴：领取全图鉴奖励 ---------- */
+function claimAllCodexReward() {
+  if (State.allCollectionReward) return { ok: false, msg: '已领取' };
+  if (!isAllCodexComplete()) return { ok: false, msg: '未集齐全部 5 档' };
+  const reward = CODEX.ALL_REWARD;
+  State.coin += reward;
+  State.allCollectionReward = true;
+  save();
+  return { ok: true, amount: reward };
 }
 
 /* ---------- 买盲盒 ---------- */
@@ -349,6 +448,8 @@ function onSwipeStart(e) {
   if (!State.pending) return;
   if (getParcelState() !== 'sealed') return;
   setParcelState('opening');
+  // ★ 划拉音：开始划 → 从头播放
+  if (typeof SFX !== 'undefined' && SFX.play) SFX.play();
   e.preventDefault();
 }
 
@@ -371,6 +472,8 @@ function onSwipeMove(e) {
   // 记录起始 X
   if (!State._swipeStartX) State._swipeStartX = touch.clientX;
   if (progress >= 1) {
+    // ★ 拉满：停掉划拉音
+    if (typeof SFX !== 'undefined' && SFX.stop) SFX.stop();
     openParcel();
   }
 }
@@ -381,6 +484,11 @@ function onSwipeEnd(e) {
     setParcelState('sealed');
     const tapeH = document.getElementById('parcelTapeH');
     if (tapeH) tapeH.style.clipPath = 'inset(0 0 0 0)';
+    // ★ 划拉音：拉到一半松手 → 暂停（保留位置，再划时从断点继续）
+    if (typeof SFX !== 'undefined' && SFX.pause) SFX.pause();
+  } else {
+    // 其它情况（含已拉满/已 opened）→ 彻底停掉
+    if (typeof SFX !== 'undefined' && SFX.stop) SFX.stop();
   }
   State._swipeStartX = null;
 }
@@ -568,8 +676,9 @@ function autoOpenTick() {
     return;
   }
   // 3) 扣 cost（从 State.coin 扣，玩家金币静默减少，不 bump）+ roll
+  // 机器人自动拆不计入图鉴
   State.coin -= cost;
-  const item = rollItem(tierId);
+  const item = rollItem(tierId, { collectToCodex: false });
   const gain = item.finalValue;
   const net = gain - cost;
   // 4) 净亏会让存储变负 → 回滚 cost，飘 -X 提示，保持 idleStorage >= 0
@@ -622,9 +731,13 @@ function getCurrentStats() {
     });
     const total = items.reduce((s, it) => s + it._w, 0);
     // 期望 = Σ(item.value × valueMult × weight/total)
+    // 隐藏款不参与期望计算（只作彩蛋，不影响主经济）
     const expectedValue = items.reduce((s, it) => {
+      if (it.hidden) return s;
       return s + (it.value * fx.valueMult) * (it._w / total);
     }, 0);
+    // 总权重也要相应排除 hidden 后的值（保持期望 = 普通物品加权）
+    // 注意：这里"总权重"保留含 hidden 用于概率展示，期望/盈亏只算非 hidden
     const expectedProfit = expectedValue - tier.price;
     const expectedROI = expectedValue / tier.price;
     const baseTotal = items.reduce((s, it) => s + it.weight, 0);
@@ -648,9 +761,13 @@ function getCurrentStats() {
     // 找到稀有物当前概率
     const rareRow = rows.find(r => r.isRare);
     const rarePct = rareRow ? rareRow.pct : 0;
-    // 赚钱概率：所有 value > price 的物品概率之和
+    // 赚钱概率：所有 value > price 的物品概率之和（隐藏款不参与）
     const winPct = rows
-      .filter(r => r.value > tier.price)
+      .filter(r => r.value > tier.price && !r.isHidden)
+      .reduce((s, r) => s + r.pct, 0);
+    // 隐藏款概率：单独展示（不算入 winPct）
+    const hiddenPct = rows
+      .filter(r => r.isHidden)
       .reduce((s, r) => s + r.pct, 0);
     tiers[tierId] = {
       name: tier.cn,
@@ -665,6 +782,7 @@ function getCurrentStats() {
       luckyMaxLv: LUCKY.MAX_LEVEL,
       rarePct: rarePct,
       winPct: winPct,
+      hiddenPct: hiddenPct,
     };
   }
   return {

@@ -16,13 +16,21 @@ const BGM = {
   audio: null,       // <audio> 元素
   idx: 0,            // 当前播放索引
   isPlaying: false,  // 是否在播
+  volume: 0.5,       // 音量（0-1），init 时从 localStorage 读
 
   /** 初始化（在 DOMContentLoaded 后调用） */
   init() {
     this.audio = document.getElementById('bgm');
     if (!this.audio) return;
     this.audio.loop = true;
-    this.audio.volume = 0.5;
+    // 从 localStorage 读音量，没有则用 CONFIG.AUDIO.DEFAULT_BGM
+    try {
+      const v = localStorage.getItem(CONFIG.AUDIO.BGM_VOL_KEY);
+      this.volume = v != null ? clamp01(parseFloat(v)) : CONFIG.AUDIO.DEFAULT_BGM;
+    } catch (e) {
+      this.volume = CONFIG.AUDIO.DEFAULT_BGM;
+    }
+    this.audio.volume = this.volume;
     this.audio.addEventListener('error', () => {
       // 资源 404 等不抛错，console 提示即可
       console.warn('[BGM] 资源加载失败：', BGM_PLAYLIST[this.idx]?.file);
@@ -41,6 +49,9 @@ const BGM = {
     const globalBtn = document.getElementById('btnBgmGlobalToggle');
     if (globalBtn) globalBtn.addEventListener('click', () => this.toggle());
 
+    // 音量滑块：背景音乐
+    this._bindVolumeSlider('volBgm', 'volBgmNum', (v) => this.setVolume(v));
+
     // 点遮罩关闭
     const mask = document.getElementById('bgmModal');
     if (mask) mask.addEventListener('click', (e) => {
@@ -56,6 +67,19 @@ const BGM = {
     };
     document.addEventListener('pointerdown', kickoff, { once: true });
     document.addEventListener('keydown', kickoff, { once: true });
+  },
+
+  /** 绑定音量滑块 input 事件（label 自动跟随 + 写 localStorage） */
+  _bindVolumeSlider(sliderId, numId, setter) {
+    const slider = document.getElementById(sliderId);
+    const num = document.getElementById(numId);
+    if (!slider) return;
+    // 初始值由 openPicker 同步；这里先跳过空值
+    slider.addEventListener('input', () => {
+      const pct = parseInt(slider.value, 10) || 0;
+      setter(pct / 100);
+      if (num) num.textContent = String(pct);
+    });
   },
 
   /** 加载指定索引的歌曲（不自动播） */
@@ -102,8 +126,22 @@ const BGM = {
   /** 打开选歌弹窗 */
   openPicker() {
     this.renderPicker();
+    this._syncVolumeSliders();
     const mask = document.getElementById('bgmModal');
     if (mask) mask.classList.add('show');
+  },
+
+  /** 把当前 BGM/SFX 音量同步到滑块 UI */
+  _syncVolumeSliders() {
+    const bgmSlider = document.getElementById('volBgm');
+    const bgmNum = document.getElementById('volBgmNum');
+    if (bgmSlider) bgmSlider.value = String(Math.round(this.volume * 100));
+    if (bgmNum) bgmNum.textContent = String(Math.round(this.volume * 100));
+
+    const sfxSlider = document.getElementById('volSfx');
+    const sfxNum = document.getElementById('volSfxNum');
+    if (sfxSlider) sfxSlider.value = String(Math.round((typeof SFX !== 'undefined' ? SFX.getVolume() : CONFIG.AUDIO.DEFAULT_SFX) * 100));
+    if (sfxNum) sfxNum.textContent = String(Math.round((typeof SFX !== 'undefined' ? SFX.getVolume() : CONFIG.AUDIO.DEFAULT_SFX) * 100));
   },
 
   /** 关闭选歌弹窗 */
@@ -155,4 +193,115 @@ const BGM = {
     if (!btn) return;
     btn.textContent = this.isPlaying ? '⏸ 全部暂停' : '▶ 全部播放';
   },
+
+  /** 设置音量（0-1），持久化 */
+  setVolume(v) {
+    this.volume = clamp01(v);
+    if (this.audio) this.audio.volume = this.volume;
+    try { localStorage.setItem(CONFIG.AUDIO.BGM_VOL_KEY, String(this.volume)); } catch (e) {}
+  },
+
+  /** 读取当前音量（0-1） */
+  getVolume() {
+    return this.volume;
+  },
 };
+
+// =====================================================
+// SFX 划拉音（短音效：拆盲盒封带时循环播放）
+// =====================================================
+// 资源位置：assets/audio/sfx_tear.mp3
+// 行为：开始划 → 从头播；中途松手 → 暂停（保留位置）；再次划 → 继续播；拉满 → 停
+// 速度：0.5x 播放，时长 ≈ 2 倍（原曲太短）
+// =====================================================
+
+const SFX = {
+  audio: null,
+  src: 'assets/audio/sfx_tear.mp3',
+  isPlaying: false,
+  rate: 0.5,      // 0.5x 播放，时长 ≈ 2 倍
+  volume: 0.8,    // 默认 0.8（与 BGM 一致）
+
+  init() {
+    this.audio = document.getElementById('sfxTear');
+    if (!this.audio) return;
+    this.audio.loop = true;
+    // 从 localStorage 读音量
+    try {
+      const v = localStorage.getItem(CONFIG.AUDIO.SFX_VOL_KEY);
+      this.volume = v != null ? clamp01(parseFloat(v)) : CONFIG.AUDIO.DEFAULT_SFX;
+    } catch (e) {
+      this.volume = CONFIG.AUDIO.DEFAULT_SFX;
+    }
+    this.audio.volume = this.volume;
+    this.audio.playbackRate = this.rate;
+    this.audio.addEventListener('error', () => {
+      console.warn('[SFX] 资源加载失败：', this.src);
+      this.isPlaying = false;
+    });
+    // 设置 src（即使 html 没写，也补上）
+    try {
+      if (!this.audio.src || this.audio.src.endsWith('/')) {
+        this.audio.src = this.src;
+      }
+    } catch (e) {}
+    // 绑定 SFX 音量滑块
+    const slider = document.getElementById('volSfx');
+    const num = document.getElementById('volSfxNum');
+    if (slider) {
+      slider.addEventListener('input', () => {
+        const pct = parseInt(slider.value, 10) || 0;
+        this.setVolume(pct / 100);
+        if (num) num.textContent = String(pct);
+      });
+    }
+  },
+
+  /** 开始划：播放（保留 currentTime，从断点继续；stop 后会从头） */
+  play() {
+    if (!this.audio) return;
+    this.audio.play().then(() => {
+      this.isPlaying = true;
+    }).catch(() => {
+      this.isPlaying = false;
+    });
+  },
+
+  /** 中途松手：暂停（保留 currentTime，再次 play 从断点继续） */
+  pause() {
+    if (!this.audio) return;
+    this.audio.pause();
+    this.isPlaying = false;
+  },
+
+  /** 拉满 / 取消：停止并回到 0 */
+  stop() {
+    if (!this.audio) return;
+    this.audio.pause();
+    try {
+      this.audio.currentTime = 0;
+    } catch (e) {}
+    this.isPlaying = false;
+  },
+
+  /** 设置音量（0-1），持久化 */
+  setVolume(v) {
+    this.volume = clamp01(v);
+    if (this.audio) this.audio.volume = this.volume;
+    try { localStorage.setItem(CONFIG.AUDIO.SFX_VOL_KEY, String(this.volume)); } catch (e) {}
+  },
+
+  /** 读取当前音量（0-1） */
+  getVolume() {
+    return this.volume;
+  },
+};
+
+/** 工具：把任意数字裁到 0-1 */
+function clamp01(v) {
+  v = Number(v);
+  if (isNaN(v)) return 0;
+  if (v < 0) return 0;
+  if (v > 1) return 1;
+  return v;
+}

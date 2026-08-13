@@ -2183,7 +2183,7 @@ body { display: flex; align-items: center; justify-content: center; }
   align-self: flex-start;   /* ad-strip row 容器下顶部对齐"幸运值/看视频"那行 */
   flex: 0 0 auto;
   margin: 0;
-  padding: 4px 12px;
+  padding: 6px 12px;
   background: var(--gold);
   border: 1.5px solid var(--ink);
   box-shadow: 1.5px 1.5px 0 var(--ink);
@@ -2640,6 +2640,70 @@ body { display: flex; align-items: center; justify-content: center; }
 }
 .bgm-global-toggle:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
 
+/* 音量调节（BGM 弹窗底部）*/
+.vol-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+.vol-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--ink);
+  letter-spacing: 0.5px;
+}
+.vol-label {
+  flex: 0 0 64px;
+  text-align: left;
+  white-space: nowrap;
+}
+.vol-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: var(--paper-light);
+  border: 1.5px solid var(--ink);
+  outline: none;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+}
+.vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--green);
+  border: 1.5px solid var(--ink);
+  cursor: pointer;
+  box-shadow: 1px 1px 0 var(--ink);
+}
+.vol-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--green);
+  border: 1.5px solid var(--ink);
+  cursor: pointer;
+  box-shadow: 1px 1px 0 var(--ink);
+}
+.vol-num {
+  flex: 0 0 28px;
+  text-align: right;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
 /* ========== 隐私政策弹窗(首次启动) ========== */
 .privacy-mask {
   position: absolute; inset: 0;
@@ -2852,3 +2916,330 @@ body { display: flex; align-items: center; justify-content: center; }
   color: #4a3a26;
   margin-bottom: 20px;
 }
+
+/* ========== 图鉴按钮（主页：极简风格，只有书页 SVG）==========
+ * 不要外圈红框、不要红色圆底，干净的书页本身
+ * 跟音乐按钮同位置（music 下方），但视觉上更"轻" */
+.codex-home-btn {
+  position: relative;  /* 为红点定位 */
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; margin: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.15s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.codex-home-btn:hover { background: rgba(58,40,23,0.08); }
+.codex-home-btn:active {
+  background: rgba(58,40,23,0.18);
+  transform: scale(0.94);
+}
+.codex-home-btn .codex-home-ic {
+  width: 26px; height: 26px;
+  display: block;
+  pointer-events: none;
+  filter: drop-shadow(0.5px 1px 0 rgba(58,40,23,0.18));
+}
+/* 图鉴按钮右上角红色提醒点（可领取奖励时显示） */
+.codex-home-dot {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 9px;
+  height: 9px;
+  background: #E53935;
+  border: 1.5px solid var(--paper);
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.08);
+  animation: codexDotPulse 1.4s ease-in-out infinite;
+}
+@keyframes codexDotPulse {
+  0%, 100% { transform: scale(1);   opacity: 1; }
+  50%      { transform: scale(1.18); opacity: 0.85; }
+}
+
+/* ========== 图鉴弹窗 ========== */
+.codex-card .modal-body { padding: 10px 12px 12px; }
+.codex-section {
+  margin-bottom: 8px;
+  border: 1.5px solid var(--ink);
+  background: var(--paper);
+  box-shadow: 2px 2px 0 var(--ink);
+  position: relative;
+  overflow: hidden;
+}
+.codex-section:last-child { margin-bottom: 4px; }
+/* 档位背景色（跟首页 buy-card 保持一致）*/
+.codex-section.premium { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.codex-section.luxury  { background: var(--green); color: var(--paper); border-color: var(--ink); }
+.codex-section.epic    { background: var(--brown-deep); color: var(--paper); border-color: var(--ink); }
+.codex-section.mythic  { background: var(--gold); color: var(--ink); border-color: var(--ink); }
+
+.codex-sec-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 9px;
+  border-bottom: 1.5px dashed currentColor;
+  border-bottom-color: rgba(58,40,23,0.4);
+}
+.codex-section.premium .codex-sec-head,
+.codex-section.luxury .codex-sec-head,
+.codex-section.epic .codex-sec-head { border-bottom-color: rgba(244,232,208,0.35); }
+.codex-section.mythic .codex-sec-head { border-bottom-color: rgba(58,40,23,0.25); }
+
+.codex-sec-l { display: flex; align-items: center; gap: 7px; }
+.codex-sec-ic {
+  font-size: 14px; line-height: 1;
+  width: 24px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--paper); color: var(--ink);
+  border: 1.5px solid var(--ink);
+  border-radius: 4px;
+  box-shadow: 1px 1px 0 var(--ink);
+}
+.codex-section.premium .codex-sec-ic,
+.codex-section.luxury  .codex-sec-ic,
+.codex-section.epic    .codex-sec-ic { background: var(--paper-light); }
+.codex-section.mythic  .codex-sec-ic { background: var(--paper); }
+
+.codex-sec-name {
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 800; font-size: 12px;
+  letter-spacing: 0.5px;
+}
+.codex-section.premium .codex-sec-name,
+.codex-section.luxury  .codex-sec-name,
+.codex-section.epic    .codex-sec-name { color: var(--paper); }
+.codex-section.mythic  .codex-sec-name { color: var(--ink); }
+
+.codex-sec-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.3px;
+  opacity: 0.85;
+}
+.codex-section.premium .codex-sec-meta,
+.codex-section.luxury  .codex-sec-meta,
+.codex-section.epic    .codex-sec-meta { color: var(--paper); }
+.codex-section.mythic  .codex-sec-meta { color: var(--ink); }
+
+.codex-progress {
+  flex: 1; max-width: 90px; height: 5px;
+  background: rgba(58,40,23,0.18);
+  border: 1px solid currentColor;
+  border-color: rgba(58,40,23,0.3);
+  position: relative; overflow: hidden;
+  margin: 0 8px;
+}
+.codex-section.premium .codex-progress,
+.codex-section.luxury  .codex-progress,
+.codex-section.epic    .codex-progress {
+  background: rgba(244,232,208,0.18);
+  border-color: rgba(244,232,208,0.35);
+}
+.codex-section.mythic  .codex-progress {
+  background: rgba(58,40,23,0.15);
+  border-color: rgba(58,40,23,0.3);
+}
+.codex-progress-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  background: var(--gold);
+  transition: width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.codex-progress-fill.full {
+  background: var(--green);
+  animation: codex-fill 0.6s ease;
+}
+@keyframes codex-fill {
+  0%   { transform: scaleX(1); }
+  50%  { transform: scaleX(1.08); }
+  100% { transform: scaleX(1); }
+}
+
+/* 物品网格：5 列（比之前 4 列更紧凑，整体不超屏幕） */
+.codex-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+  padding: 7px 9px 9px;
+}
+.codex-item {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border: 1.2px solid rgba(58,40,23,0.35);
+  background: rgba(58,40,23,0.06);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px;       /* 普通 emoji 大小（之前 16px 偏小，参照格子调到 26px） */
+  line-height: 1;
+  filter: grayscale(1) opacity(0.45);
+  transition: filter 0.25s, transform 0.1s, background 0.2s;
+  cursor: default;
+  overflow: hidden;
+}
+.codex-section.premium .codex-item,
+.codex-section.luxury  .codex-item,
+.codex-section.epic    .codex-item {
+  border-color: rgba(244,232,208,0.35);
+  background: rgba(244,232,208,0.08);
+}
+.codex-section.mythic  .codex-item {
+  border-color: rgba(58,40,23,0.3);
+  background: rgba(58,40,23,0.06);
+}
+.codex-item.collected {
+  filter: none;
+  background: var(--paper);
+  border-color: var(--ink);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+.codex-item.hidden-item.collected {
+  background: linear-gradient(135deg, rgba(212,175,55,0.15), rgba(184,134,11,0.25));
+  border-color: #b8860b;
+  box-shadow: 1px 1px 0 #b8860b;
+  animation: codex-hidden-shine 3s ease-in-out infinite;
+}
+@keyframes codex-hidden-shine {
+  0%, 100% { box-shadow: 1px 1px 0 #b8860b; }
+  50%      { box-shadow: 1px 1px 0 #b8860b, 0 0 6px rgba(212,175,55,0.5); }
+}
+/* 隐藏款问号占位（未开出时） */
+.codex-item .ci-q {
+  font-family: 'Fraunces, serif';
+  font-weight: 900;
+  font-size: 30px;
+  color: var(--ink-soft);
+  line-height: 1;
+  letter-spacing: 0;
+}
+.codex-section.premium .codex-item .ci-q,
+.codex-section.luxury  .codex-item .ci-q,
+.codex-section.epic    .codex-item .ci-q { color: rgba(244,232,208,0.6); }
+.codex-section.mythic  .codex-item .ci-q { color: rgba(58,40,23,0.5); }
+/* 隐藏款 SVG 容器：撑满格子并居中，修复偏左问题 */
+.codex-item .ci-em {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%;
+  line-height: 0;
+}
+.codex-item .ci-em svg {
+  width: 78%; height: 78%;
+  display: block;
+  /* preserveAspectRatio 默认 xMidYMid meet = 居中保持比例 */
+}
+.codex-item .ci-name {
+  position: absolute; left: 50%; bottom: 2px;
+  transform: translateX(-50%);
+  font-family: 'Noto Serif SC', serif;
+  font-size: 7.5px; font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.2px;
+  max-width: 92%;
+  text-align: center;
+  line-height: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: none;  /* 默认不显示名字（保持简洁），hover 时显示 */
+}
+.codex-item.collected:hover .ci-name { display: block; }
+.codex-item.collected .ci-name {
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  padding: 1px 4px;
+  bottom: -6px;
+  z-index: 2;
+}
+
+/* 档位底部"领取奖励"按钮 */
+.codex-claim {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 9px;
+  border-top: 1.5px dashed currentColor;
+  border-top-color: rgba(58,40,23,0.4);
+  background: rgba(244,232,208,0.5);
+}
+.codex-section.premium .codex-claim,
+.codex-section.luxury  .codex-claim,
+.codex-section.epic    .codex-claim { background: rgba(58,40,23,0.18); border-top-color: rgba(244,232,208,0.35); }
+.codex-section.mythic  .codex-claim { background: rgba(244,232,208,0.4); border-top-color: rgba(58,40,23,0.25); }
+
+.codex-claim-text {
+  font-family: 'Noto Serif SC', serif;
+  font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.3px;
+  display: flex; align-items: center; gap: 5px;
+}
+.codex-section.premium .codex-claim-text,
+.codex-section.luxury  .codex-claim-text,
+.codex-section.epic    .codex-claim-text { color: var(--paper); }
+.codex-section.mythic  .codex-claim-text { color: var(--ink); }
+.codex-claim-text .cct-amt { font-family: 'DM Mono', monospace; color: var(--gold); font-weight: 800; }
+.codex-section.premium .codex-claim-text .cct-amt { color: var(--gold-bright); }
+
+.codex-claim-btn {
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 800; font-size: 10.5px;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  background: var(--green); color: var(--paper);
+  border: 1.5px solid var(--ink);
+  box-shadow: 1.5px 1.5px 0 var(--ink);
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s, background 0.15s, opacity 0.2s;
+  min-height: 26px;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.codex-claim-btn:active { transform: translate(1px, 1px); box-shadow: 0.5px 0.5px 0 var(--ink); }
+.codex-claim-btn:disabled {
+  background: var(--paper-dark);
+  color: var(--ink-soft);
+  border-color: var(--ink-soft);
+  box-shadow: 1.5px 1.5px 0 var(--ink-soft);
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+.codex-claim-btn.claimed {
+  background: var(--paper-dark);
+  color: var(--ink-soft);
+  border-color: var(--ink-soft);
+  box-shadow: 1.5px 1.5px 0 var(--ink-soft);
+  cursor: default;
+  opacity: 0.7;
+}
+
+/* 弹窗底部：全图鉴奖励 */
+.codex-foot { padding: 10px 12px 11px; }
+.codex-all-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background: linear-gradient(90deg, rgba(212,175,55,0.12), rgba(184,134,11,0.18));
+  border: 1.5px solid #b8860b;
+  box-shadow: 2px 2px 0 #b8860b;
+  margin-bottom: 6px;
+}
+.codex-all-row.done {
+  background: rgba(58,40,23,0.06);
+  border-color: var(--ink-soft);
+  box-shadow: 2px 2px 0 var(--ink-soft);
+}
+.codex-all-info {
+  display: flex; align-items: baseline; flex-wrap: nowrap;
+  gap: 6px;
+  min-width: 0;
+}
+.codex-all-label {
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 800; font-size: 11.5px;
+  letter-spacing: 0.5px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.codex-all-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 9.5px;
+  color: var(--ink-soft);
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+#codexAllAmt { color: var(--gold); font-family: 'DM Mono', monospace; font-weight: 800; }

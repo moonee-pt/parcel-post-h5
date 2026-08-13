@@ -30,6 +30,7 @@ const UI = {
     this.refreshAutoOpenToggle();
     this.refreshClearBadge();  // 同步通关徽章
     this.renderStorageBadge();  // 初始化挂机存储角标（存储 > 0 才显示）
+    this.refreshCodexBadge();  // 初始化图鉴红点
     this.setupDragScroll(document.getElementById('buyRow'));
   },
 
@@ -128,7 +129,7 @@ const UI = {
       card.innerHTML = `
         <span class="icon">${t.icon}</span>
         <div class="tier">${t.label}</div>
-        <div class="price"><span class="c">◉</span>${t.price}</div>
+        <div class="price"><span class="c">◉</span>${formatCoin(t.price)}</div>
         <div class="risk">${t.riskLabel}</div>
         <div class="restock-tag">自动补货中</div>
         <div class="restock-badge">🔄</div>
@@ -199,7 +200,7 @@ const UI = {
     }
     // 提示（退款时显示）
     if (refund > 0) {
-      this.spawnPityTag('restock', `已购买 ${tier.cn} · 退还 ${refund} ◉`);
+      this.spawnPityTag('restock', `已购买 ${tier.cn} · 退还 ${formatCoin(refund)} ◉`);
     }
   },
 
@@ -264,6 +265,7 @@ const UI = {
     // 隐藏款暴富特效：全屏豪华动画
     if (item.isHidden) {
       setTimeout(() => this.spawnHiddenReveal(item), 250);
+      this.refreshCodexBadge();  // 隐藏款也更新图鉴进度
       return; // 隐藏款跳过常规 fx
     }
 
@@ -285,6 +287,8 @@ const UI = {
       save();
       this.refreshCoin();
     }
+    // 物品收集状态可能变化，刷新主页图鉴红点
+    this.refreshCodexBadge();
   },
 
   spawnFx(item, tierId) {
@@ -355,7 +359,7 @@ const UI = {
     const emoji = (item.emoji && typeof item.emoji === 'string' && !item.emoji.startsWith('<'))
       ? item.emoji
       : '📦';
-    numEl.textContent = `${emoji} ${sign}${net} ◉`;
+    numEl.textContent = `${emoji} ${sign}${formatCoin(net)} ◉`;
     chip.appendChild(numEl);
     requestAnimationFrame(() => numEl.classList.add('go'));
     setTimeout(() => numEl.remove(), 1400);
@@ -401,6 +405,30 @@ const UI = {
       isHidden: true,
     };
     this.spawnHiddenReveal(fakeItem);
+  },
+
+  /* ========== 测试图鉴（开发用）：随机点亮一个未收集的物品 ========== */
+  testCodexAddItem() {
+    // 收集所有未抽到的物品
+    const pending = [];
+    for (const tierId in TIER) {
+      const collected = State.collection[tierId] || {};
+      for (const it of TIER[tierId].items) {
+        if (!collected[it.name]) pending.push({ tierId, it });
+      }
+    }
+    if (pending.length === 0) {
+      this.spawnPityTag('lucky', '⚠️ 图鉴已全收集');
+      return;
+    }
+    const pick = pending[Math.floor(Math.random() * pending.length)];
+    markItemCollected(pick.tierId, pick.it.name);
+    save();
+    this.spawnPityTag('collect', `📖 ${TIER[pick.tierId].cn} · 收录 ${pick.it.name}`);
+    // 如果弹窗开着，刷新弹窗
+    if (document.getElementById('codexModal')?.classList.contains('show')) {
+      this.renderCodexContent();
+    }
   },
 
   /* ========== 隐藏款豪华揭示动画（屏幕中央） ========== */
@@ -525,7 +553,7 @@ const UI = {
   showCoinDeduct(amount) {
     const el = document.getElementById('coinDeduct');
     if (!el) return;
-    el.textContent = `-${amount} ◉`;
+    el.textContent = `-${formatCoin(amount)} ◉`;
     // 重启动画
     el.classList.remove('go');
     void el.offsetWidth;  /* 强制 reflow */
@@ -794,6 +822,17 @@ const UI = {
     // 测试隐藏款（开发用）
     document.getElementById('btnTestHidden')?.addEventListener('click', () => this.testHiddenReveal());
 
+    // 测试图鉴（开发用：随机点亮一个未收集的物品）
+    document.getElementById('btnTestCodex')?.addEventListener('click', () => this.testCodexAddItem());
+
+    // 图鉴
+    document.getElementById('btnCodex')?.addEventListener('click', () => this.openCodex());
+    document.getElementById('btnCodexClose')?.addEventListener('click', () => this.closeCodex());
+    document.getElementById('codexModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'codexModal') this.closeCodex();
+    });
+    document.getElementById('btnCodexClaimAll')?.addEventListener('click', () => this.handleClaimAllCodex());
+
     // 划封带：touch
     const parcel = document.getElementById('parcel');
     if (parcel) {
@@ -1051,7 +1090,7 @@ const UI = {
             <span class="rc-ic">${tier.icon}</span>
             <div>
               <div class="rc-name">${tier.cn}</div>
-              <div class="rc-price">${tier.label} · ${tier.price} ◉</div>
+              <div class="rc-price">${tier.label} · ${formatCoin(tier.price)} ◉</div>
             </div>
           </div>
           ${check}
@@ -1104,12 +1143,12 @@ const UI = {
           const r = tryAutoRestock();
           if (r && r.ok && r.where === 'next') {
             this.refreshCoin();
-            this.spawnPityTag('restock', `已切换为 ${TIER[tierId].cn} · 退还 ${oldTier.cn} ${oldTier.price} ◉`);
+            this.spawnPityTag('restock', `已切换为 ${TIER[tierId].cn} · 退还 ${oldTier.cn} ${formatCoin(oldTier.price)} ◉`);
           } else if (r && r.reason === 'no-coin') {
             this.spawnPityTag('restock-fail', `金币不足，下次自动补货时再买 ${TIER[tierId].cn}`);
             this.refreshCoin();
           } else {
-            this.spawnPityTag('restock', `已切换为 ${TIER[tierId].cn} · 退还 ${oldTier.cn} ${oldTier.price} ◉`);
+            this.spawnPityTag('restock', `已切换为 ${TIER[tierId].cn} · 退还 ${oldTier.cn} ${formatCoin(oldTier.price)} ◉`);
             this.refreshCoin();
           }
         }
@@ -1209,7 +1248,7 @@ const UI = {
       // 走激励视频：用户完整观看后才发奖并关闭弹窗
       Ad.watch((r) => {
         if (!r || !r.ok) return;
-        this.spawnPityTag('lucky', `📺 广告奖励 +${r.reward} ◉`);
+        this.spawnPityTag('lucky', `📺 广告奖励 +${formatCoin(r.reward)} ◉`);
         close();
       });
     });
@@ -1263,7 +1302,7 @@ const UI = {
         ? `${winPct.toFixed(1)}%`
         : `<span class="lc-locked" title="看广告解锁">?</span>`;
       const evDisplay = isUnlocked
-        ? `<span class="${evClass}">${evSign}${t.expectedProfit.toFixed(1)}</span>`
+        ? `<span class="${evClass}">${evSign}${formatCoin(t.expectedProfit)}</span>`
         : `<span class="lc-locked" title="看广告解锁">?</span>`;
       // 跟 tierPicker 弹窗同款卡片结构（restock-card 视觉），但底部加等级 + 升级
       return `<div class="lucky-card restock-card ${tier.className || ''} ${isMax ? 'maxed' : ''} ${isUnlocked ? 'unlocked' : 'locked'}">
@@ -1272,7 +1311,7 @@ const UI = {
             <span class="rc-ic">${tier.icon}</span>
             <div>
               <div class="rc-name">${tier.cn}</div>
-              <div class="rc-price">${tier.label} · ${tier.price} ◉</div>
+              <div class="rc-price">${tier.label} · ${formatCoin(tier.price)} ◉</div>
             </div>
           </div>
           <span class="rc-check">Lv.${lv}/${maxLv}</span>
@@ -1337,9 +1376,160 @@ const UI = {
     document.getElementById('clearModal')?.classList.remove('show');
   },
 
+  /* ========== 图鉴系统 ========== */
+  openCodex() {
+    this.renderCodexContent();
+    document.getElementById('codexModal')?.classList.add('show');
+  },
+  closeCodex() {
+    document.getElementById('codexModal')?.classList.remove('show');
+  },
+  renderCodexContent() {
+    const body = document.getElementById('codexModalBody');
+    if (!body) return;
+    // 各档位物品数量
+    let allComplete = true;
+    let completeCount = 0;
+    for (const tierId in TIER) {
+      if (getCodexProgress(tierId).complete) completeCount++;
+      else allComplete = false;
+    }
+    let html = '';
+    for (const tierId in TIER) {
+      const t = TIER[tierId];
+      const prog = getCodexProgress(tierId);
+      const isComplete = prog.complete;
+      const reward = CODEX.TIER_REWARD[tierId] || 0;
+      const claimed = !!State.collectionRewards[tierId];
+
+      // 物品格
+      const itemsHtml = t.items.map(it => {
+        const collected = !!(State.collection[tierId] && State.collection[tierId][it.name]);
+        const isHidden = !!it.hidden;
+        // 隐藏款未收集：显示 ? 占位；收集后：显示真实 icon
+        const inner = (isHidden && !collected)
+          ? `<span class="ci-q">?</span>`
+          : `<span class="ci-em">${it.emoji}</span>`;
+        const cls = `codex-item ${collected ? 'collected' : ''} ${isHidden ? 'hidden-item' : ''}`;
+        return `<div class="${cls}">
+          ${inner}
+          <span class="ci-name">${it.name}</span>
+        </div>`;
+      }).join('');
+
+      // 档位标题
+      const sectionCls = `codex-section ${t.className || ''}`;
+      const progressPct = Math.round(prog.ratio * 100);
+      const fillCls = isComplete ? 'codex-progress-fill full' : 'codex-progress-fill';
+
+      // 领取按钮
+      let claimBtnHtml;
+      if (claimed) {
+        claimBtnHtml = `<button class="codex-claim-btn claimed" disabled>✓ 已领取</button>`;
+      } else if (isComplete) {
+        claimBtnHtml = `<button class="codex-claim-btn" data-claim-tier="${tierId}">🎁 领取 <span class="cct-amt">+${formatCoin(reward)} ◉</span></button>`;
+      } else {
+        claimBtnHtml = `<button class="codex-claim-btn" disabled>🔒 集齐 ${prog.total} 个解锁</button>`;
+      }
+
+      html += `<div class="${sectionCls}">
+        <div class="codex-sec-head">
+          <div class="codex-sec-l">
+            <span class="codex-sec-ic">${t.icon}</span>
+            <span class="codex-sec-name">${t.cn}</span>
+            <span class="codex-sec-meta">${prog.collected}/${prog.total}</span>
+          </div>
+          <div class="codex-progress">
+            <div class="${fillCls}" style="width:${progressPct}%;"></div>
+          </div>
+        </div>
+        <div class="codex-grid">${itemsHtml}</div>
+        <div class="codex-claim">
+          <span class="codex-claim-text">
+            <span>单档集齐奖励</span>
+            <span class="cct-amt">+${formatCoin(reward)} ◉</span>
+          </span>
+          ${claimBtnHtml}
+        </div>
+      </div>`;
+    }
+    body.innerHTML = html;
+
+    // 绑定单档领取按钮
+    body.querySelectorAll('.codex-claim-btn[data-claim-tier]').forEach(btn => {
+      btn.addEventListener('click', () => this.handleClaimCodexTier(btn.dataset.claimTier));
+    });
+
+    // 底部全图鉴奖励
+    const allBtn = document.getElementById('btnCodexClaimAll');
+    const allMeta = document.getElementById('codexAllMeta');
+    const allAmt = document.getElementById('codexAllAmt');
+    const allRow = document.getElementById('codexAllRow');
+    if (allMeta) allMeta.textContent = `${completeCount} / 5 档`;
+    if (allAmt) allAmt.textContent = `+${formatCoin(CODEX.ALL_REWARD)} ◉`;
+    if (allBtn) {
+      if (State.allCollectionReward) {
+        allBtn.disabled = true;
+        allBtn.classList.add('claimed');
+        allBtn.innerHTML = '✓ 已领取';
+        if (allRow) allRow.classList.add('done');
+      } else if (allComplete) {
+        allBtn.disabled = false;
+        allBtn.innerHTML = `🎁 领取 <span id="codexAllAmt">+${formatCoin(CODEX.ALL_REWARD)} ◉</span>`;
+        if (allRow) allRow.classList.remove('done');
+      } else {
+        allBtn.disabled = true;
+        allBtn.innerHTML = `🔒 集齐 5 档解锁`;
+        if (allRow) allRow.classList.remove('done');
+      }
+    }
+  },
+  handleClaimCodexTier(tierId) {
+    const r = claimCodexTierReward(tierId);
+    if (!r.ok) {
+      this.spawnPityTag('lucky', `⚠️ ${r.msg}`);
+      return;
+    }
+    this.spawnPityTag('collect', `🎁 ${TIER[tierId].cn} 集齐奖励 +${formatCoin(r.amount)} ◉`);
+    this.refreshCoin();
+    this.renderCodexContent();
+    this.refreshCodexBadge();  // 领取后刷新主页红点
+    // 顺手刷新属性弹窗（如果在打开状态）
+    if (document.getElementById('statsModal')?.classList.contains('show')) {
+      this.renderStatsContent(getCurrentStats());
+    }
+  },
+  handleClaimAllCodex() {
+    const r = claimAllCodexReward();
+    if (!r.ok) {
+      this.spawnPityTag('lucky', `⚠️ ${r.msg}`);
+      return;
+    }
+    this.spawnPityTag('collect', `🏆 全图鉴奖励 +${formatCoin(r.amount)} ◉`);
+    this.refreshCoin();
+    this.renderCodexContent();
+    this.refreshCodexBadge();  // 领取后刷新主页红点
+  },
+  /** 刷新主页图鉴按钮右上角红点（可领取奖励时显示） */
+  refreshCodexBadge() {
+    const dot = document.getElementById('codexHomeDot');
+    if (!dot) return;
+    // 1) 任意单档已集齐但未领取 → 显示
+    // 2) 全部 5 档已收齐但全图鉴奖励未领取 → 显示
+    let hasUnclaimed = false;
+    for (const tierId in TIER) {
+      if (State.collectionRewards[tierId]) continue;            // 已领取
+      if (getCodexProgress(tierId).complete) { hasUnclaimed = true; break; }
+    }
+    if (!hasUnclaimed && !State.allCollectionReward && isAllCodexComplete()) {
+      hasUnclaimed = true;
+    }
+    dot.hidden = !hasUnclaimed;
+  },
+
   /* ========== 重新开始（测试用：清存档并刷新）========== */
   handleReset() {
-    if (!confirm('确定清除存档重新开始？所有金币、等级、幸运值都会清空。')) return;
+    if (!confirm('确定清除存档重新开始？所有金币、等级、幸运值、图鉴都会清空。')) return;
     try {
       localStorage.removeItem(CONFIG.SAVE_KEY);
       // ★ 顺带清掉看广告解锁收益分析的状态，否则重置后还显示
@@ -1355,6 +1545,18 @@ const UI = {
     if (!body) return;
     const fx = stats.effects;
 
+    // 通关状态：仅当所有可购买升级全满级时显示
+    const completed = (typeof isGameCompleted === 'function') && isGameCompleted();
+    const completedHtml = completed
+      ? `<div class="clear-banner clear-banner-inline">
+          <div class="cb-ic">🏆</div>
+          <div class="cb-text">
+            <div class="cb-title">全部升级已满级 · 已通关</div>
+            <div class="cb-sub">可以继续拆盲盒赚钱、滚雪球</div>
+          </div>
+        </div>`
+      : '';
+
     // === 第 1 段：开箱概率（按档位）===
     let tiersHtml = '';
     for (const tierId in stats.tiers) {
@@ -1369,8 +1571,8 @@ const UI = {
         return `<div class="item-row ${cls}">
           <span class="ir-em">${displayEmoji}</span>
           <span class="ir-name">${displayName}</span>
-          <span class="ir-val">${it.value} ◉</span>
-          <span class="ir-valcur">${curValue} ◉</span>
+          <span class="ir-val">${formatCoin(it.value)} ◉</span>
+          <span class="ir-valcur">${formatCoin(curValue)} ◉</span>
           <span class="ir-basepct">${it.basePct.toFixed(1)}%</span>
           <span class="ir-pct">${it.pct.toFixed(1)}%</span>
         </div>`;
@@ -1389,8 +1591,8 @@ const UI = {
       </div>`;
       tiersHtml += `<div class="tier-block">
         <div class="tier-head">
-          <span class="th-name"><span class="th-ic">${t.icon}</span>${t.name} · ${t.price} ◉</span>
-          <span class="th-ev ${evClass}">期望 ${evSign}${t.expectedProfit.toFixed(1)} · ROI ${roiSign}${roiPct}%</span>
+          <span class="th-name"><span class="th-ic">${t.icon}</span>${t.name} · ${formatCoin(t.price)} ◉</span>
+          <span class="th-ev ${evClass}">期望 ${evSign}${formatCoin(t.expectedProfit)} · ROI ${roiSign}${roiPct}%</span>
         </div>
         ${colHead}
         ${rows}
