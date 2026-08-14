@@ -18,7 +18,7 @@
 
     <div class="topbar">
       <div class="tb-left">
-        <div class="logo">
+        <div class="logo" id="logoDevTrigger">
           <span class="mark">P</span>
           <span class="name">
             <span class="cn">暴富盲盒拆拆拆</span>
@@ -103,6 +103,30 @@
           </svg>
           <span class="codex-home-dot" id="codexHomeDot" hidden></span>
         </button>
+        <!-- 成就入口：icon-only（解锁时会自动弹窗，无小红点） -->
+        <button class="codex-home-btn ach-home-btn" id="btnAchievement" title="成就">
+          <svg class="codex-home-ic" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <!-- 杯身：空心风，浅纸色填充 + 墨边 -->
+            <path d="M7 5 L17 5 L16 13 Q16 15 12 15 Q8 15 8 13 Z"
+                  fill="#F4E8D0" stroke="#3A2817" stroke-width="1.4" stroke-linejoin="round"/>
+            <!-- 左耳：纯描边 -->
+            <path d="M7 6 Q4 6 4 9 Q4 11 7 11"
+                  fill="none" stroke="#3A2817" stroke-width="1.4" stroke-linejoin="round"/>
+            <!-- 右耳：纯描边 -->
+            <path d="M17 6 Q20 6 20 9 Q20 11 17 11"
+                  fill="none" stroke="#3A2817" stroke-width="1.4" stroke-linejoin="round"/>
+            <!-- 杯口横线 -->
+            <line x1="8" y1="15" x2="16" y2="15" stroke="#3A2817" stroke-width="1.2"/>
+            <!-- 杯颈 -->
+            <rect x="10.5" y="15" width="3" height="3" fill="#F4E8D0" stroke="#3A2817" stroke-width="1.3"/>
+            <!-- 底座 -->
+            <rect x="8" y="18" width="8" height="2.2" fill="#F4E8D0" stroke="#3A2817" stroke-width="1.3"/>
+            <rect x="6.5" y="20.2" width="11" height="1.4" fill="#F4E8D0" stroke="#3A2817" stroke-width="1.3"/>
+            <!-- 顶部小星：空心风 -->
+            <path d="M12 1.5 L12.6 3 L14.2 3 L12.9 3.9 L13.4 5.4 L12 4.5 L10.6 5.4 L11.1 3.9 L9.8 3 L11.4 3 Z"
+                  fill="#F4E8D0" stroke="#3A2817" stroke-width="0.9" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <!-- 抽卡入口：icon-only，参考 codex 风格；红点显示当前生效 buff 数量 -->
         <button class="codex-home-btn card-home-btn" id="btnCard" title="技能卡抽卡">
           <svg class="codex-home-ic" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -125,11 +149,11 @@
           <span class="rb-ic">⟳</span>
           <span class="rb-name">重置</span>
         </button>
-        <button class="reset-btn" id="btnTestHidden" title="测试开出隐藏款动画">
+        <button class="reset-btn rb-dev" id="btnTestHidden" title="测试开出隐藏款动画">
           <span class="rb-ic">👑</span>
           <span class="rb-name">测隐藏</span>
         </button>
-        <button class="reset-btn" id="btnTestCodex" title="测试：随机点亮一个图鉴物品">
+        <button class="reset-btn rb-dev" id="btnTestCodex" title="测试：随机点亮一个图鉴物品">
           <span class="rb-ic">📖</span>
           <span class="rb-name">测图鉴</span>
         </button>
@@ -314,7 +338,16 @@
             <span class="vol-num" id="volSfxNum">80</span>
           </div>
         </div>
-        <button class="bgm-global-toggle" id="btnBgmGlobalToggle">⏸ 全部暂停</button>
+        <button class="bgm-global-toggle" id="btnBgmGlobalToggle" type="button">
+          <svg class="bgm-toggle-ic bgm-toggle-ic-pause" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <rect x="6" y="4" width="4" height="16" fill="#3A2817" stroke="#3A2817" stroke-width="1" stroke-linejoin="round"/>
+            <rect x="14" y="4" width="4" height="16" fill="#3A2817" stroke="#3A2817" stroke-width="1" stroke-linejoin="round"/>
+          </svg>
+          <svg class="bgm-toggle-ic bgm-toggle-ic-play" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M7 4 L20 12 L7 20 Z" fill="#3A2817" stroke="#3A2817" stroke-width="1.2" stroke-linejoin="round"/>
+          </svg>
+          <span class="bgm-toggle-label">全部播放</span>
+        </button>
         <div class="mf-hint">点歌名切歌，点「全部」暂停/继续</div>
       </div>
     </div>
@@ -339,6 +372,48 @@
           <button class="codex-claim-btn" id="btnCodexClaimAll" disabled>🎁 领取 <span id="codexAllAmt">+200k</span></button>
         </div>
         <div class="mf-hint">每抽到一个新物品自动点亮 · 机器人自动拆出的物品不计入图鉴</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== MODAL: 成就 ========== -->
+  <div class="modal-mask" id="achievementModal">
+    <div class="modal-card ach-card">
+      <div class="modal-head">
+        <div class="modal-title">
+          <span class="mt-ic ach-mt-ic" aria-hidden="true">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M7 5 L17 5 L16 13 Q16 15 12 15 Q8 15 8 13 Z"
+                    fill="#F4E8D0" stroke="#3A2817" stroke-width="1.4" stroke-linejoin="round"/>
+              <path d="M7 6 Q4 6 4 9 Q4 11 7 11"
+                    fill="none" stroke="#3A2817" stroke-width="1.4" stroke-linejoin="round"/>
+              <path d="M17 6 Q20 6 20 9 Q20 11 17 11"
+                    fill="none" stroke="#3A2817" stroke-width="1.4" stroke-linejoin="round"/>
+              <line x1="8" y1="15" x2="16" y2="15" stroke="#3A2817" stroke-width="1.2"/>
+              <rect x="10.5" y="15" width="3" height="3" fill="#F4E8D0" stroke="#3A2817" stroke-width="1.3"/>
+              <rect x="8" y="18" width="8" height="2.2" fill="#F4E8D0" stroke="#3A2817" stroke-width="1.3"/>
+              <rect x="6.5" y="20.2" width="11" height="1.4" fill="#F4E8D0" stroke="#3A2817" stroke-width="1.3"/>
+              <path d="M12 1.5 L12.6 3 L14.2 3 L12.9 3.9 L13.4 5.4 L12 4.5 L10.6 5.4 L11.1 3.9 L9.8 3 L11.4 3 Z"
+                    fill="#F4E8D0" stroke="#3A2817" stroke-width="0.9" stroke-linejoin="round"/>
+            </svg>
+          </span>成就
+        </div>
+        <button class="modal-close" id="btnAchievementClose">×</button>
+      </div>
+      <div class="modal-body ach-body" id="achievementModalBody">
+        <!-- 由 JS 渲染 5 类成就 -->
+      </div>
+      <div class="modal-foot ach-foot">
+        <div class="ach-progress">
+          <div class="ach-progress-l">
+            <span class="ach-progress-label">总进度</span>
+            <span class="ach-progress-meta" id="achHeadMeta">0 / 18</span>
+          </div>
+          <div class="ach-progress-track">
+            <div class="ach-progress-fill" id="achHeadFill" style="width:0%"></div>
+          </div>
+        </div>
+        <div class="mf-hint">18 枚里程碑 · 铭刻你的开箱者传奇</div>
       </div>
     </div>
   </div>

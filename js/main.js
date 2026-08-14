@@ -62,6 +62,34 @@ const State = {
   cardUnlocked: false,
   // 抽卡总次数（用于统计）
   cardDrawCount: 0,
+
+  // ========== 单局时间统计（成就 & 排行榜用）==========
+  // 进游戏时间戳（秒）；achievementSpeed 用作 runElapsedSec 计算
+  runStartTs: Math.floor(Date.now() / 1000),
+  // 累计赚到金币（只看入账：拆包/广告/救济/成就），只增不减；用于金币榜
+  totalEarned: 0,
+  // 机器人累计运行秒数（不含暂停时段）；用于 robot_30m 成就
+  robotRunAccSec: 0,
+  // 机器人当前连续运行秒数（任何暂停重置为 0，恢复后从 0 重新累加）；用于 robot_5m 成就
+  robotRunStreakSec: 0,
+
+  // ========== 成就系统 ==========
+  // 18 个成就：{ id: { unlocked: bool, ts: 0 } }
+  achievements: {},
+  // 成就检测用的运行时统计
+  achievementStats: {
+    totalOpenCount: 0,                    // 累计拆包数
+    rareStreak: 0,                        // 当前连续出"赚钱物品"次数
+    rareStreakBest: 0,                    // 历史最佳
+    profitStreak: 0,                      // 连续正收益次数（profit = sellPrice > tier.cost）
+    openCountByTier: {                    // 各档位拆包数
+      ordinary: 0, premium: 0, luxury: 0, epic: 0, mythic: 0,
+    },
+    hiddenCollected: {                    // 5 档隐藏款各拿 1 次的进度
+      ordinary: false, premium: false, luxury: false, epic: false, mythic: false,
+    },
+  },
+  // 成就解锁会直接弹窗通知，无需未读红点计数
 };
 
 /* ---------- 存档 ---------- */
@@ -93,6 +121,12 @@ function save() {
       cardDrawCooldownEnd: State.cardDrawCooldownEnd,
       cardUnlocked: State.cardUnlocked,
       cardDrawCount: State.cardDrawCount,
+      // 单局时间 & 累计金币（不存 runStartTs，重启游戏按"新一局"重置；从存档读时若不存在则重打）
+      totalEarned: State.totalEarned,
+      robotRunAccSec: State.robotRunAccSec,
+      // 成就
+      achievements: State.achievements,
+      achievementStats: State.achievementStats,
     };
     localStorage.setItem(CONFIG.SAVE_KEY, JSON.stringify(data));
   } catch (e) {
@@ -167,12 +201,54 @@ function load() {
       State.cardDrawCooldownEnd = data.cardAdCooldownEnd;
     }
     if (typeof data.cardDrawCount === 'number') State.cardDrawCount = data.cardDrawCount;
+
+    // ========== 成就 & 累计字段读档 ==========
+    if (typeof data.totalEarned === 'number') State.totalEarned = data.totalEarned;
+    if (typeof data.robotRunAccSec === 'number') State.robotRunAccSec = data.robotRunAccSec;
+    // 兼容旧存档：旧档没有 streak 字段，初始化为 0（视为"还没开始连续"）
+    if (typeof data.robotRunStreakSec === 'number') State.robotRunStreakSec = data.robotRunStreakSec;
+    else State.robotRunStreakSec = 0;
+    if (data.achievements && typeof data.achievements === 'object') {
+      State.achievements = data.achievements;
+    }
+    if (data.achievementStats && typeof data.achievementStats === 'object') {
+      // 浅合并：保留旧值，只补缺失字段（避免老存档覆盖新字段）
+      const s = data.achievementStats;
+      if (typeof s.totalOpenCount === 'number') State.achievementStats.totalOpenCount = s.totalOpenCount;
+      if (typeof s.rareStreak === 'number') State.achievementStats.rareStreak = s.rareStreak;
+      if (typeof s.rareStreakBest === 'number') State.achievementStats.rareStreakBest = s.rareStreakBest;
+      if (typeof s.profitStreak === 'number') State.achievementStats.profitStreak = s.profitStreak;
+      if (s.openCountByTier) {
+        for (const t in State.achievementStats.openCountByTier) {
+          if (typeof s.openCountByTier[t] === 'number') {
+            State.achievementStats.openCountByTier[t] = s.openCountByTier[t];
+          }
+        }
+      }
+      if (s.hiddenCollected) {
+        for (const t in State.achievementStats.hiddenCollected) {
+          if (typeof s.hiddenCollected[t] === 'boolean') {
+            State.achievementStats.hiddenCollected[t] = s.hiddenCollected[t];
+          }
+        }
+      }
+    }
+    // 兼容旧存档：_achievementUnseenCount 已废弃，无需恢复
+    // runStartTs：旧存档没存过 → 读档后按"现在"重打（视为重新开始计时）
+    // 后续版本若持久化时间字段，可去掉这一行
+    State.runStartTs = Math.floor(Date.now() / 1000);
   } catch (e) {
     console.warn('读档失败', e);
   }
 }
 
 /* ---------- 工具 ---------- */
+// 单局游玩秒数：进游戏起算（重开时 State.runStartTs 重新打点）
+function getRunElapsedSec() {
+  if (!State || !State.runStartTs) return 0;
+  return Math.max(0, Math.floor(Date.now() / 1000) - State.runStartTs);
+}
+
 // 金币格式化：< 10000 用千分位逗号（"1,234"）；>= 10000 用 k/M/B 单位（"23k", "1.2M", "5B"）
 // 后端 State.coin 始终保持精确数字，仅展示层简化
 function formatCoin(n) {
@@ -255,6 +331,18 @@ function isLuckyMax(tierId) {
   return getLuckyLv(tierId) >= LUCKY.MAX_LEVEL;
 }
 
+/* ========== 主战场 = 玩家当前金币能买得起的最高档盲盒 ==========
+ * 广告奖励档 = 主战场那档的 expectedProfit（保底 50）。
+ * ad.js 和 ui.js 共享这个函数，避免阈值分散两处导致数字对不上。
+ */
+function getMainTier() {
+  if (State.coin >= 5000) return 'mythic';
+  if (State.coin >= 1000) return 'epic';
+  if (State.coin >=  200) return 'luxury';
+  if (State.coin >=   50) return 'premium';
+  return 'ordinary';
+}
+
 /* ========== 通关检测：所有可购买升级全满级 ==========
  * 范围：所有 SKILL（oneTime + maxLevel）+ 5 档 LUCKY
  * 通关后游戏仍正常运行（继续拆盲盒、继续赚钱、看广告、存读档等不受影响）
@@ -279,6 +367,8 @@ function upgradeLucky(tierId) {
   State.coin -= cost;
   State.luckyLv[tierId] = getLuckyLv(tierId) + 1;
   save();
+  // ★ 成就：幸运值升级（检测 all_lucky_max）
+  if (typeof triggerAchievements === 'function') triggerAchievements('lucky', { tierId });
   return { ok: true };
 }
 
@@ -335,13 +425,31 @@ function rollItem(tierId, opts = {}) {
     if (b.type === 'hiddenBoost' && b.expiresAt > Date.now()) return s + b.boost;
     return s;
   }, 0);
+  // 先算 lucky 加成后的 items
   const items = tier.items.map(it => {
     let w = it.weight;
     w = w + luckyWeightBonus(tierId, it);
-    // 隐藏款额外加权重（抽卡 buff「隐藏升级」生效时）
-    if (hiddenBoost > 0 && it.hidden) w += hiddenBoost;
     return { ...it, _w: w };
   });
+  // 「隐藏升级」buff：加百分点（不是加权重）
+  // 让"加 5"始终是"加 5 个百分点"：满级 1.3% + 5% = 6.3%，0 级 0.3% + 5% = 5.3%
+  if (hiddenBoost > 0) {
+    const hiddenItemsArr = items.filter(it => it.hidden);
+    if (hiddenItemsArr.length > 0) {
+      const nonHiddenTotal = items.filter(it => !it.hidden).reduce((s, it) => s + it._w, 0);
+      const hiddenBaseTotal = hiddenItemsArr.reduce((s, it) => s + it._w, 0);
+      const total = nonHiddenTotal + hiddenBaseTotal;
+      const baseHiddenPct = total > 0 ? hiddenBaseTotal / total : 0;
+      const buffPct = hiddenBoost / 100;  // 5 → 0.05
+      const newHiddenPct = Math.min(0.95, baseHiddenPct + buffPct);
+      // 反算 hidden 总权重：newPct = newW / (nonHidden + newW) → newW = newPct * nonHidden / (1 - newPct)
+      const newHiddenTotal = newHiddenPct * nonHiddenTotal / (1 - newHiddenPct);
+      const deltaPerHidden = (newHiddenTotal - hiddenBaseTotal) / hiddenItemsArr.length;
+      items.forEach(it => {
+        if (it.hidden) it._w += deltaPerHidden;
+      });
+    }
+  }
 
   // === 普通包裹保底判定 ===
   // "正收益物品" = 小玩具（12）和耳机（40），这两个的 value > 普通包裹价格 10
@@ -577,6 +685,8 @@ function openParcel() {
   if (tapeV) tapeV.style.clipPath = 'inset(0 0 0 0)';
   // 滚物品
   const item = rollItem(State.pending.tierId);
+  // 成就统计：玩家手动拆 → 计入 totalOpenCount / rareStreak / profitStreak / hiddenCollected
+  recordOpenStats(State.pending.tierId, item, { collectToCodex: true });
   // 触发 UI 动画（UI 层）
   if (typeof UI !== 'undefined' && UI.onItemRolled) UI.onItemRolled(item, State.pending.tierId);
   // ★ 关键：物品一开始飞，就立即准备下一个盲盒（预备队），并立刻扣钱
@@ -589,6 +699,8 @@ function openParcel() {
       UI.showCoinDeduct(TIER[State.autoRestockTier].price);
     }
   }
+  // 触发成就检测（含 first_step / open_100 / open_1000 / first_rare / streak_* / all_hidden / tier_clear / codex_*）
+  if (typeof triggerAchievements === 'function') triggerAchievements('open', { tierId: State.pending.tierId, item });
   // 物品飞完后清空盲盒盒
   setTimeout(() => {
     State.pending = null;
@@ -671,6 +783,8 @@ function unlockSkillFree(id) {
     tryAutoRestock();
   }
   save();
+  // ★ 成就：看广告解锁技能（检测 unlock_robot / unlock_restock）
+  if (typeof triggerAchievements === 'function') triggerAchievements('skill', { id, free: true });
   return { ok: true };
 }
 
@@ -715,6 +829,14 @@ function autoOpenTick() {
   const maxIdx = State.autoTierLv || 0;  // 0-4：当前机器人能拆到的最高档位索引
   let tierId = State.autoOpenTier;
   const curIdx = tierOrder.indexOf(tierId);
+
+  // ★ 成就 streak 维护：任何暂停（手动 paused / 系统 reason）→ 立即归零；
+  //   正常 tick → 累加 interval。acc 仍在 line 866 与扣钱绑在一起累加。
+  if (State.autoOpenPaused || State.autoOpenBlockReason) {
+    if (State.robotRunStreakSec && State.robotRunStreakSec > 0) {
+      State.robotRunStreakSec = 0;
+    }
+  }
   if (curIdx > maxIdx) tierId = tierOrder[maxIdx];
   const tier = TIER[tierId];
   const cost = tier.price;
@@ -752,8 +874,16 @@ function autoOpenTick() {
   }
   // 3) 扣 cost（从 State.coin 扣，玩家金币静默减少，不 bump）+ roll
   // 机器人自动拆不计入图鉴
+  // ★ 成就：累加机器人累计运行秒数（acc 永增）+ 连续运行秒数（streak 已通过入口逻辑确保未暂停）
+  const _interval = getAutoInterval();
+  State.robotRunAccSec = (State.robotRunAccSec || 0) + _interval;
+  State.robotRunStreakSec = (State.robotRunStreakSec || 0) + _interval;
   State.coin -= cost;
   const item = rollItem(tierId, { collectToCodex: false });
+  // 成就统计：机器人拆 → 只 +1 totalOpenCount / openCountByTier（不污染 hiddenCollected / 图鉴）
+  recordOpenStats(tierId, item, { collectToCodex: false });
+  // 触发成就检测（first_step / open_100 / open_1000 / streak_* / robot_30m / robot_3h）
+  if (typeof triggerAchievements === 'function') triggerAchievements('autoOpen', { tierId, item });
   const gain = item.finalValue;
   const net = gain - cost;
   // 4) 净亏会让存储变负 → 回滚 cost，飘 -X 提示，保持 idleStorage >= 0
@@ -773,11 +903,14 @@ function autoOpenTick() {
   }
 }
 
-/* ---------- 领取暂存金币（机器人挂机存储）---------- */
-function collectIdleStorage() {
+/* ---------- 领取暂存金币（机器人挂机存储）----------
+ * mult: 1=原样领取；2=看广告双倍领取
+ * 音效：不在此处播放；调用方（UI 层）在 r.ok 后手动 SFX_ONE.play('coin') 反馈 */
+function collectIdleStorage(mult = 1) {
   if (State.idleStorage <= 0) return { ok: false, msg: '存储为空' };
-  const amount = State.idleStorage;
+  const amount = Math.floor(State.idleStorage * mult);
   State.coin += amount;
+  addEarned(amount);
   State.idleStorage = 0;
   // 领取后：解除"存储已满"系统暂停
   if (State.autoOpenBlockReason === 'storageFull') {
@@ -785,14 +918,168 @@ function collectIdleStorage() {
     State.autoOpenBlockReason = null;
   }
   save();
-  // 领取金币时播放一次音效
-  if (typeof SFX_ONE !== 'undefined' && SFX_ONE.play) SFX_ONE.play('coin');
+  // 音效在 UI 层手动播放（不在此处播，避免与弹窗"立即 ×1"路径重复）
   if (typeof UI !== 'undefined') {
     if (UI.refreshCoin) UI.refreshCoin();
     if (UI.renderStorageBadge) UI.renderStorageBadge();
     if (UI.refreshRobotChip) UI.refreshRobotChip();
   }
   return { ok: true, amount };
+}
+
+/* ============================================================
+ * 成就系统（18 个，无奖励，纯展示）
+ * ============================================================ */
+
+/* ---------- 工具：成就相关 ---------- */
+function isAchievementUnlocked(id) {
+  return !!(State.achievements && State.achievements[id] && State.achievements[id].unlocked);
+}
+
+// 物品"赚钱"判定：卖出价 > 盲盒成本（隐藏款价值高，但不算在 streak 难度里 → 含/不含可分）
+function _itemIsProfit(item, tier) {
+  if (!item || !tier) return false;
+  return (item.finalValue || item.value || 0) > (tier.price || 0);
+}
+function _itemIsProfitNoHidden(item, tier) {
+  if (!item) return false;
+  if (item.hidden) return false;
+  return _itemIsProfit(item, tier);
+}
+
+// 单档毕业：某档位所有非隐藏物品全收集
+function _isTierCleared(tierId) {
+  const tier = TIER && TIER[tierId];
+  if (!tier || !Array.isArray(tier.items)) return false;
+  const nonHidden = tier.items.filter(it => !it.hidden);
+  if (nonHidden.length === 0) return false;
+  const coll = State.collection && State.collection[tierId];
+  if (!coll) return false;
+  return nonHidden.every(it => coll[it.name]);
+}
+
+// 图鉴总进度（0-1）
+function _getCodexRatio() {
+  if (typeof TIER === 'undefined') return 0;
+  let totalNonHidden = 0, got = 0;
+  for (const tid in TIER) {
+    const tier = TIER[tid];
+    if (!tier || !Array.isArray(tier.items)) continue;
+    const nonHidden = tier.items.filter(it => !it.hidden);
+    totalNonHidden += nonHidden.length;
+    const coll = State.collection && State.collection[tid] || {};
+    got += nonHidden.filter(it => coll[it.name]).length;
+  }
+  if (totalNonHidden === 0) return 0;
+  return got / totalNonHidden;
+}
+function _isCodexFull() {
+  return _getCodexRatio() >= 0.999;
+}
+
+/* ---------- 记录一次"拆包完成"对成就统计的累加（玩家手动 + 机器人共用）----------
+ * opts.collectToCodex: 是否计入图鉴（玩家 true / 机器人 false）；用于 hiddenCollected 标记
+ * 不在这里 trigger，留给调用方统一 triggerAchievements('open', ...)
+ */
+function recordOpenStats(tierId, item, opts) {
+  if (!State.achievementStats) State.achievementStats = {
+    totalOpenCount: 0, rareStreak: 0, rareStreakBest: 0, profitStreak: 0,
+    openCountByTier: { ordinary: 0, premium: 0, luxury: 0, epic: 0, mythic: 0 },
+    hiddenCollected: { ordinary: false, premium: false, luxury: false, epic: false, mythic: false },
+  };
+  const s = State.achievementStats;
+  const tier = (typeof TIER !== 'undefined') ? TIER[tierId] : null;
+
+  // 1) 累计拆包数 + 各档拆包数（机器人和玩家都计）
+  s.totalOpenCount = (s.totalOpenCount || 0) + 1;
+  if (!s.openCountByTier[tierId]) s.openCountByTier[tierId] = 0;
+  s.openCountByTier[tierId] += 1;
+
+  // 2) rareStreak / profitStreak：按"出正收益物品"算（含隐藏款，因为 hidden 价值高）
+  //    策划语义"任何档位出正收益"——隐藏款 finalValue 远超 cost，计为正
+  const isPositive = _itemIsProfit(item, tier);
+  s.rareStreak = isPositive ? ((s.rareStreak || 0) + 1) : 0;
+  if (s.rareStreak > (s.rareStreakBest || 0)) s.rareStreakBest = s.rareStreak;
+  s.profitStreak = isPositive ? ((s.profitStreak || 0) + 1) : 0;
+
+  // 3) hiddenCollected：只对"玩家手动"拆包（计入图鉴的那次）统计
+  //    机器人 collectToCodex=false 与图鉴脱钩，不污染成就/图鉴
+  if (opts && opts.collectToCodex && item && item.isHidden) {
+    s.hiddenCollected[tierId] = true;
+  }
+}
+
+/* ---------- 成就判定（18 个 kind）---------- */
+function checkAchievement(ach) {
+  const stats = State.achievementStats;
+  switch (ach.kind) {
+    case 'totalOpen':    return stats.totalOpenCount >= ach.threshold;
+    case 'totalEarned':  return State.totalEarned >= ach.threshold;
+    case 'firstRare':    return stats.rareStreak >= 1;
+    case 'rareStreak':   return stats.rareStreak >= ach.threshold;
+    case 'profitStreak': return stats.profitStreak >= ach.threshold;
+    case 'allHidden':    return Object.values(stats.hiddenCollected).every(v => v === true);
+    case 'tierClear':    return ['ordinary','premium','luxury','epic','mythic'].some(t => _isTierCleared(t));
+    case 'codexRatio':   return _getCodexRatio() >= ach.threshold;
+    case 'codexFull': {
+      if (!_isCodexFull()) return false;
+      if (ach.param && typeof ach.param.timeLimit === 'number') {
+        return getRunElapsedSec() <= ach.param.timeLimit;
+      }
+      return true;
+    }
+    case 'unlockRobot':   return State.autoOpenUnlocked === true;
+    case 'unlockRestock': return State.autoRestockUnlocked === true;
+    case 'robotRunAcc':    return State.robotRunAccSec >= ach.threshold;
+    case 'robotRunStreak': return State.robotRunStreakSec >= ach.threshold;
+    case 'allLuckyMax': {
+      const max = (typeof LUCKY !== 'undefined' && LUCKY.MAX_LEVEL) || 5;
+      return Object.values(State.luckyLv).every(v => v >= max);
+    }
+    case 'allAchievements': {
+      // 17 个其他成就全部解锁
+      if (typeof ACHIEVEMENTS === 'undefined') return false;
+      return ACHIEVEMENTS
+        .filter(a => a.id !== 'all_achievements')
+        .every(a => isAchievementUnlocked(a.id));
+    }
+  }
+  return false;
+}
+
+/* ---------- 解锁一个成就：标记 + 弹窗 ---------- */
+function unlockAchievement(id) {
+  if (isAchievementUnlocked(id)) return;
+  if (!State.achievements) State.achievements = {};
+  State.achievements[id] = { unlocked: true, ts: Math.floor(Date.now() / 1000) };
+  save();
+  // 弹窗通知玩家（已打开页 / 关页都能看到）
+  if (typeof UI !== 'undefined' && UI.spawnAchievementModal) {
+    const ach = (typeof ACHIEVEMENTS !== 'undefined') ? ACHIEVEMENTS.find(a => a.id === id) : null;
+    if (ach) UI.spawnAchievementModal(ach);
+  }
+  // 解锁"成就大师"（17 个全解锁后）
+  if (id !== 'all_achievements') {
+    if (typeof ACHIEVEMENTS !== 'undefined' && checkAchievement(ACHIEVEMENTS.find(a => a.id === 'all_achievements'))) {
+      unlockAchievement('all_achievements');
+    }
+  }
+}
+
+/* ---------- 事件触发器：拆包/入账/技能解锁/幸运值升级/机器人tick 时调用 ---------- */
+function triggerAchievements(event, ctx) {
+  if (typeof ACHIEVEMENTS === 'undefined' || !Array.isArray(ACHIEVEMENTS)) return;
+  for (const ach of ACHIEVEMENTS) {
+    if (isAchievementUnlocked(ach.id)) continue;
+    if (checkAchievement(ach)) unlockAchievement(ach.id);
+  }
+}
+
+/* ---------- 公开 helper：累加 totalEarned + 触发成就 ---------- */
+function addEarned(amount) {
+  if (typeof amount !== 'number' || amount <= 0) return;
+  State.totalEarned = (State.totalEarned || 0) + amount;
+  triggerAchievements('coin', { amount });
 }
 
 /* ============================================================
@@ -939,6 +1226,7 @@ function claimCardAllReward() {
   const collected = Object.keys(State.cardCollection || {}).length;
   if (collected < total) return { ok: false, msg: `未集齐（${collected}/${total}）` };
   State.coin += CARD.ALL_REWARD;
+  addEarned(CARD.ALL_REWARD);
   State.cardAllCollectedReward = true;
   save();
   // 领取金币时播放一次音效

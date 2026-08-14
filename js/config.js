@@ -108,6 +108,113 @@ const ICON = {
     <line x1="50" y1="28" x2="50" y2="20" stroke="#3A2817" stroke-width="2"/>
     <circle cx="50" cy="18" r="2.5" fill="#B83A2E" stroke="#3A2817" stroke-width="1.5"/>
   </svg>`,
+
+  // 自动补货（升级页 + 广告弹窗统一图标）：♻ 双弯循环箭头
+  // 颜色跟随 currentColor：未购买=棕色(浅色背景清晰)，已购买=金黄(棕色背景清晰)
+  restock: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 12 50 a 38 38 0 0 1 38 -38 a 38 38 0 0 1 28 12 L 88 33"/>
+    <polyline points="88,12 88,33 67,33"/>
+    <path d="M 88 50 a 38 38 0 0 1 -38 38 a 38 38 0 0 1 -28 -12 L 12 67"/>
+    <polyline points="12,88 12,67 33,67"/>
+  </svg>`,
+
+  // 自动拆包机器人（升级页 + 广告弹窗统一图标）：方脑袋 + 天线 + 眼睛 + 齿轮手臂
+  robot: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <!-- 天线 -->
+    <line x1="50" y1="20" x2="50" y2="8" stroke="#3A2817" stroke-width="2.5"/>
+    <circle cx="50" cy="6" r="3" fill="#B83A2E" stroke="#3A2817" stroke-width="1.5"/>
+    <!-- 头部方框 -->
+    <rect x="22" y="22" width="56" height="42" rx="3" fill="#C9A961" stroke="#3A2817" stroke-width="3"/>
+    <!-- 左眼 -->
+    <rect x="30" y="32" width="14" height="14" rx="2" fill="#F4E8D0" stroke="#3A2817" stroke-width="2.5"/>
+    <circle cx="37" cy="39" r="3" fill="#3A2817"/>
+    <!-- 右眼 -->
+    <rect x="56" y="32" width="14" height="14" rx="2" fill="#F4E8D0" stroke="#3A2817" stroke-width="2.5"/>
+    <circle cx="63" cy="39" r="3" fill="#3A2817"/>
+    <!-- 嘴巴（齿条） -->
+    <line x1="34" y1="56" x2="66" y2="56" stroke="#3A2817" stroke-width="2.5"/>
+    <line x1="42" y1="52" x2="42" y2="60" stroke="#3A2817" stroke-width="1.5"/>
+    <line x1="50" y1="52" x2="50" y2="60" stroke="#3A2817" stroke-width="1.5"/>
+    <line x1="58" y1="52" x2="58" y2="60" stroke="#3A2817" stroke-width="1.5"/>
+    <!-- 脖子 -->
+    <rect x="42" y="64" width="16" height="5" fill="#3A2817"/>
+    <!-- 底座 -->
+    <rect x="30" y="69" width="40" height="9" fill="#C9A961" stroke="#3A2817" stroke-width="2.5"/>
+    <!-- 手臂齿轮（左右） -->
+    <circle cx="14" cy="48" r="6" fill="#3A2817"/>
+    <circle cx="14" cy="48" r="2.5" fill="#C9A961"/>
+    <circle cx="86" cy="48" r="6" fill="#3A2817"/>
+    <circle cx="86" cy="48" r="2.5" fill="#C9A961"/>
+  </svg>`,
+
+  // 价值加成（A_value）：金币堆（三层金字塔 + $ 符号）
+  value: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <!-- 底层 2 块（深金） -->
+    <ellipse cx="32" cy="78" rx="16" ry="5" fill="#A88A4D" stroke="#3A2817" stroke-width="2.5"/>
+    <ellipse cx="68" cy="78" rx="16" ry="5" fill="#A88A4D" stroke="#3A2817" stroke-width="2.5"/>
+    <!-- 中层 1 块（中金） -->
+    <ellipse cx="50" cy="60" rx="20" ry="6" fill="#C9A961" stroke="#3A2817" stroke-width="2.5"/>
+    <!-- 顶层 1 块（亮金） -->
+    <ellipse cx="50" cy="40" rx="18" ry="6" fill="#D4AF37" stroke="#3A2817" stroke-width="2.5"/>
+    <!-- $ 符号 -->
+    <text x="50" y="46" text-anchor="middle" font-family="Fraunces, serif"
+          font-size="14" font-weight="900" fill="#3A2817">$</text>
+    <!-- 高光小点 -->
+    <circle cx="40" cy="38" r="1.5" fill="#F4E8D0" opacity="0.7"/>
+    <circle cx="60" cy="38" r="1.5" fill="#F4E8D0" opacity="0.7"/>
+  </svg>`,
+
+  // 拆包加速（B_openSpeed）：闪电
+  speed: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <path d="M 58 6 L 22 54 L 44 54 L 36 94 L 78 42 L 56 42 L 66 6 Z"
+          fill="#D4AF37" stroke="#3A2817" stroke-width="3" stroke-linejoin="round"/>
+    <!-- 高光 -->
+    <path d="M 58 6 L 22 54 L 32 54 L 56 18 Z" fill="#F4E8D0" opacity="0.4"/>
+  </svg>`,
+
+  // 机器人分拣强化（B_autoTier）：🛠️ 单个锤子 + 强化星
+  tier: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <!-- 锤头：中金，左窄右平（复古印刷风）-->
+    <path d="M 14 18 L 70 18 L 78 30 L 70 42 L 14 42 L 8 30 Z"
+          fill="#C9A961" stroke="#3A2817" stroke-width="3" stroke-linejoin="round"/>
+    <!-- 锤头亮面 -->
+    <path d="M 14 18 L 70 18 L 74 24 L 12 24 Z" fill="#D4AF37"/>
+    <!-- 锤头中线（硬度感）-->
+    <line x1="12" y1="30" x2="74" y2="30" stroke="#3A2817" stroke-width="1.5" opacity="0.4"/>
+    <!-- 锤柄：木色 -->
+    <rect x="42" y="42" width="14" height="42" rx="2"
+          fill="#A8754A" stroke="#3A2817" stroke-width="3"/>
+    <!-- 锤柄木纹 -->
+    <line x1="46" y1="48" x2="46" y2="80" stroke="#3A2817" stroke-width="1.5" opacity="0.5"/>
+    <line x1="52" y1="48" x2="52" y2="80" stroke="#3A2817" stroke-width="1.5" opacity="0.5"/>
+    <!-- 锤柄底盖 -->
+    <rect x="40" y="82" width="18" height="6" fill="#3A2817"/>
+    <!-- 强化星：右上方主星 -->
+    <path d="M 88 6 L 90 14 L 98 16 L 90 18 L 88 26 L 86 18 L 78 16 L 86 14 Z"
+          fill="#D4AF37" stroke="#3A2817" stroke-width="1.5" stroke-linejoin="round"/>
+    <!-- 强化星：左下方小圆 -->
+    <circle cx="10" cy="66" r="3" fill="#D4AF37" stroke="#3A2817" stroke-width="1.2"/>
+    <!-- 强化星：右下方小星 -->
+    <path d="M 92 58 L 93 62 L 97 63 L 93 64 L 92 68 L 91 64 L 87 63 L 91 62 Z"
+          fill="#D4AF37" stroke="#3A2817" stroke-width="1.5" stroke-linejoin="round"/>
+  </svg>`,
+
+  // 扩容仓库（B_idleStorageLv）：复古木箱 + 向上箭头
+  storage: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <!-- 上箭头（绿色，表示扩容） -->
+    <path d="M 50 4 L 50 22 M 42 12 L 50 4 L 58 12" fill="none" stroke="#2D5F3F" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- 箱盖 -->
+    <rect x="12" y="26" width="76" height="14" fill="#A8754A" stroke="#3A2817" stroke-width="3"/>
+    <!-- 箱体 -->
+    <rect x="16" y="40" width="68" height="48" fill="#A8754A" stroke="#3A2817" stroke-width="3"/>
+    <!-- 木板竖纹 -->
+    <line x1="34" y1="40" x2="34" y2="88" stroke="#3A2817" stroke-width="2"/>
+    <line x1="50" y1="40" x2="50" y2="88" stroke="#3A2817" stroke-width="2"/>
+    <line x1="66" y1="40" x2="66" y2="88" stroke="#3A2817" stroke-width="2"/>
+    <!-- 锁扣 -->
+    <rect x="44" y="56" width="12" height="14" fill="#C9A961" stroke="#3A2817" stroke-width="2.5"/>
+    <circle cx="50" cy="63" r="2" fill="#3A2817"/>
+  </svg>`,
 };
 
 /* ========== 五档盲盒 ==========
@@ -118,12 +225,17 @@ const ICON = {
  *   4) 概率设计：Lv.0 偏低（10-22%），强迫升幸运值；Lv.5 ≈ 80%
  *   5) 物品按价值升序：坏物（value=0）在最上面，最稀有物在最下面
  *   6) 幸运值：所有 value > price 的物品权重都增加，亏钱物品相对概率下降
- * 期望目标（不含 A_value）：
- *   普通 Lv.5  ≈ +14     普通 Lv.0  ≈ +2.5
- *   精品 Lv.5  ≈ +57     精品 Lv.0  ≈ -22
- *   豪华 Lv.5  ≈ +60     豪华 Lv.0  ≈ -80
- *   至尊 Lv.5  ≈ +300    至尊 Lv.0  ≈ -300
- *   传说 Lv.5  ≈ +1500   传说 Lv.0  ≈ -800
+ * 期望目标（不含 A_value，代码 getCurrentStats() 实测值）：
+ *   普通 Lv.5  ≈ +12.5    普通 Lv.0  ≈ +1.9
+ *   精品 Lv.5  ≈ +50.2    精品 Lv.0  ≈ -24.1
+ *   豪华 Lv.5  ≈ +249.3   豪华 Lv.0  ≈ -126.3
+ *   至尊 Lv.5  ≈ +799.5   至尊 Lv.0  ≈ -552
+ *   传说 Lv.5  ≈ +4897    传说 Lv.0  ≈ -3066
+ *
+ * 广告金币机制（ad.js getReward）：
+ *   取所有档位中"赚钱概率 > 50%"的最高档，其期望盈亏 × 10
+ *   （×10 代表 30 秒手点收益，不封顶）
+ *   0 级玩家（无档位 winPct > 50%）保底 50
  * ========================== */
 const TIER = {
   ordinary: {
@@ -255,9 +367,11 @@ const LUCKY = {
     epic:     0.30,    // 至尊包：17% → 80%
     mythic:   0.30,    // 传说包：18% → 78%
   },
-  // 隐藏款单独加成：每级 +1.0% 权重（Lv.5 时最大概率约 1.5%，所有档位 ≤ 2%）
+  // 隐藏款单独加成：每级 +1.0% 权重（Lv.5 时最大概率约 1.3-1.5%，所有档位 ≤ 2%）
   // 0.015 → 0.01：上一版 luxury 满级隐藏达 2.95%、epic 2.09%，违反"≤2%"约束
-  // 0.01 后各档满级隐藏约：ordinary 1.3% / premium 1.3% / luxury 1.99% / epic 1.5% / mythic 1.0%
+  // 注意：隐藏款实际概率 = hidden权重 / 含 luckyWeightBonus 加成的总权重
+  // 例如 ordinary Lv.5：赚钱物品加成 +150+150，总权重 ≈405，hidden 5.3/405 ≈1.31%
+  // 抽到「隐藏升级」buff（+5 权重）期间：约 2.5%
   HIDDEN_BONUS_PER_LEVEL: 0.01,
 };
 
@@ -274,7 +388,7 @@ const SKILL = {
     cat: 'A',
     name: '价值加成',
     desc: '物品最终售价 +5% / 级（最高 10 级）',
-    icon: '💰',
+    icon: ICON.value,
     maxLevel: 10,
     costBase: 50, costMult: 1.6,
     // 价格：50/80/128/205/328/525/840/1344/2150/3440 → 累计 9,096
@@ -288,7 +402,7 @@ const SKILL = {
     cat: 'B',
     name: '自动补货',
     desc: '拆完自动买同档位新盲盒并放到台上（默认档位可切换）',
-    icon: '🔄',
+    icon: ICON.restock,
     oneTime: true, costBase: 200,
   },
   B_autoOpen: {
@@ -296,7 +410,7 @@ const SKILL = {
     cat: 'B',
     name: '自动拆包机器人',
     desc: '每 5 秒自动买 1 个普通盲盒并拆开（后续用「机器人分拣强化」扩展档位）',
-    icon: '🤖',
+    icon: ICON.robot,
     oneTime: true, costBase: 500,
   },
   B_openSpeed: {
@@ -304,7 +418,7 @@ const SKILL = {
     cat: 'B',
     name: '拆包加速',
     desc: '自动拆包间隔 -0.6 秒 / 级（最高 5 级，5 秒 → 2 秒）',
-    icon: '⏩',
+    icon: ICON.speed,
     maxLevel: 5,
     requires: 'B_autoOpen',
     costBase: 100, costMult: 1.7,
@@ -317,7 +431,7 @@ const SKILL = {
     cat: 'B',
     name: '机器人分拣强化',
     desc: '让机器人能拆更高档位的盲盒（Lv.1 精品 → Lv.4 传说）',
-    icon: '🛠️',
+    icon: ICON.tier,
     maxLevel: 4,
     requires: 'B_autoOpen',
     costBase: 500, costMult: 4,
@@ -333,7 +447,7 @@ const SKILL = {
     cat: 'B',
     name: '扩容仓库',
     desc: '挂机存储上限大幅提升（最高 15 级）',
-    icon: '🗃️',
+    icon: ICON.storage,
     maxLevel: 15,
     requires: 'B_autoOpen',
     costBase: 80, costMult: 1.7,
@@ -483,7 +597,8 @@ const CARD = {
       desc: '隐藏款出现概率大幅提升（仅 3 分钟）',
       icon: '👁️',
       weight: 5,
-      effect: { type: 'hiddenBoost', boost: 8, durationMs: 3 * 60 * 1000 },
+      effect: { type: 'hiddenBoost', boost: 5, durationMs: 3 * 60 * 1000 },
+      //                                       ↑ 百分点：0 级 0.3+5=5.3%，满级 1.3+5=6.3%
     },
   ],
 
@@ -521,4 +636,51 @@ const CODEX = {
     mythic:   150000,  // 传说包单次 5000 × 30
   },
   ALL_REWARD: 200000,  // 集齐 5 档全图鉴一次性奖励
+};
+
+/* ========== 成就系统（18 个，纯展示无奖励）==========
+ * 数据结构：每条 = { id, name, desc, category, icon, kind, threshold, param }
+ *   - kind: 触发判定类型（main.js 的 checkAchievement 内 switch）
+ *   - threshold: 大部分成就用单一阈值（如拆 100 个）
+ *   - param: 个别需要额外参数的（如 timeLimit）
+ * 类别 category: 'basic' | 'rare' | 'codex' | 'robot' | 'final'
+ */
+const ACHIEVEMENTS = [
+  // ========== 🏆 入门（5）==========
+  { id: 'first_step',     name: '迈出第一步',   desc: '拆开 1 个盲盒',         category: 'basic', icon: '📦', kind: 'totalOpen',  threshold: 1 },
+  { id: 'open_100',       name: '初出茅庐',     desc: '累计拆 100 个盲盒',      category: 'basic', icon: '📦', kind: 'totalOpen',  threshold: 100 },
+  { id: 'open_1000',      name: '拆包狂魔',     desc: '累计拆 1000 个盲盒',     category: 'basic', icon: '📦', kind: 'totalOpen',  threshold: 1000 },
+  { id: 'earn_10k',       name: '小有积蓄',     desc: '累计赚到 10,000 金币',   category: 'basic', icon: '◉',  kind: 'totalEarned', threshold: 10000 },
+  { id: 'earn_1m',        name: '富甲一方',     desc: '累计赚到 1,000,000 金币', category: 'basic', icon: '◉', kind: 'totalEarned', threshold: 1000000 },
+
+  // ========== 💎 稀有 / 隐藏（5）==========
+  { id: 'first_rare',     name: '第一次出"正"', desc: '任何档位开出赚钱物品（不亏本）', category: 'rare', icon: '💰', kind: 'firstRare' },
+  { id: 'streak_5_rare',  name: '运气爆棚',     desc: '连续 5 次出赚钱物品（任意档位）', category: 'rare', icon: '🌟', kind: 'rareStreak', threshold: 5 },
+  { id: 'streak_10_profit', name: '势如破竹',   desc: '任何档位连续 10 次正收益', category: 'rare', icon: '⚡', kind: 'profitStreak', threshold: 10 },
+  { id: 'all_hidden',     name: '隐藏款收藏家', desc: '5 档隐藏款各拿到 1 次',   category: 'rare', icon: '👑', kind: 'allHidden' },
+  { id: 'tier_clear',     name: '单档毕业',     desc: '某档位所有非隐藏物品全收集', category: 'rare', icon: '🎓', kind: 'tierClear' },
+
+  // ========== 📚 图鉴（3）==========
+  { id: 'codex_half',     name: '半个图鉴',     desc: '物品全图鉴收集 ≥ 50%',   category: 'codex', icon: '📖', kind: 'codexRatio', threshold: 0.5 },
+  { id: 'codex_full',     name: '完整图鉴',     desc: '物品全图鉴收集 100%',     category: 'codex', icon: '📚', kind: 'codexFull' },
+  { id: 'codex_full_speed', name: '图鉴速通',   desc: '30 分钟内收集全图鉴',     category: 'codex', icon: '⏱', kind: 'codexFull',  param: { timeLimit: 30 * 60 } },
+
+  // ========== 🤖 自动化（4）==========
+  { id: 'unlock_robot',   name: '雇佣机器人',   desc: '解锁自动拆包机器人',       category: 'robot', icon: ICON.robot,    kind: 'unlockRobot' },
+  { id: 'unlock_restock', name: '自动化大师',   desc: '解锁自动补货',             category: 'robot', icon: ICON.restock,  kind: 'unlockRestock' },
+  { id: 'robot_5m',       name: '勤劳小蜜蜂',   desc: '机器人连续运行 5 分钟',    category: 'robot', icon: '🐝', kind: 'robotRunStreak', threshold: 5 * 60 },
+  { id: 'robot_30m',      name: '老黄牛',       desc: '机器人累计运行 30 分钟',   category: 'robot', icon: '🐂', kind: 'robotRunAcc',    threshold: 30 * 60 },
+
+  // ========== 🏆 终极（2）==========
+  { id: 'all_lucky_max',  name: '欧皇',         desc: '5 档幸运值全部升到满级',  category: 'final', icon: '🍀', kind: 'allLuckyMax' },
+  { id: 'all_achievements', name: '成就大师',   desc: '获得其他 17 个成就',       category: 'final', icon: '🏆', kind: 'allAchievements' },
+];
+
+// 类别显示名（成就页分组用）
+const ACHIEVEMENT_CATEGORY_CN = {
+  basic: '入门',
+  rare:  '稀有 / 隐藏',
+  codex: '图鉴',
+  robot: '自动化',
+  final: '终极',
 };

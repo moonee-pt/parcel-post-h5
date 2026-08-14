@@ -2,6 +2,74 @@
  * ui.js — UI 渲染 + 事件绑定
  * ============================================================ */
 
+/* ---------- 广告奖励弹窗 SVG（复古印刷 + 硬边墨线）---------- */
+const AD_SVG = {
+  // 1. 主页看广告+钱：复古电视机 + 金币
+  tvCoin: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <!-- 天线 -->
+    <line x1="32" y1="22" x2="22" y2="8" stroke="#3A2817" stroke-width="3" stroke-linecap="round"/>
+    <line x1="68" y1="22" x2="78" y2="8" stroke="#3A2817" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="22" cy="8" r="2.5" fill="#3A2817"/>
+    <circle cx="78" cy="8" r="2.5" fill="#3A2817"/>
+    <!-- 机身 -->
+    <rect x="14" y="22" width="72" height="50" rx="4" fill="#C9A961" stroke="#3A2817" stroke-width="3"/>
+    <!-- 屏幕 -->
+    <rect x="22" y="30" width="44" height="34" rx="2" fill="#F4E8D0" stroke="#3A2817" stroke-width="2.5"/>
+    <!-- 屏幕里的 + 金币 -->
+    <circle cx="44" cy="47" r="9" fill="#D4AF37" stroke="#3A2817" stroke-width="2"/>
+    <text x="44" y="51" text-anchor="middle" font-family="Fraunces, serif" font-size="11" font-weight="900" fill="#3A2817">$</text>
+    <!-- 旋钮 -->
+    <circle cx="74" cy="38" r="3.5" fill="#3A2817"/>
+    <circle cx="74" cy="52" r="3.5" fill="#3A2817"/>
+    <!-- 底座 -->
+    <rect x="38" y="72" width="24" height="6" fill="#C9A961" stroke="#3A2817" stroke-width="2.5"/>
+    <line x1="30" y1="80" x2="70" y2="80" stroke="#3A2817" stroke-width="2.5" stroke-linecap="round"/>
+  </svg>`,
+  // 2. 升级页技能解锁：礼盒
+  giftBox: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <!-- 盒身 -->
+    <rect x="18" y="48" width="64" height="38" fill="#B83A2E" stroke="#3A2817" stroke-width="3"/>
+    <!-- 盒盖（厚一点）-->
+    <rect x="14" y="38" width="72" height="16" fill="#D4AF37" stroke="#3A2817" stroke-width="3"/>
+    <!-- 竖向丝带 -->
+    <rect x="46" y="38" width="8" height="48" fill="#2D5F3F" stroke="#3A2817" stroke-width="2.5"/>
+    <!-- 横向丝带 -->
+    <rect x="14" y="44" width="72" height="6" fill="#2D5F3F" stroke="#3A2817" stroke-width="2.5"/>
+    <!-- 蝴蝶结（左右两瓣）-->
+    <path d="M50 38 Q34 24 30 36 Q34 42 50 38 Z" fill="#2D5F3F" stroke="#3A2817" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M50 38 Q66 24 70 36 Q66 42 50 38 Z" fill="#2D5F3F" stroke="#3A2817" stroke-width="2.5" stroke-linejoin="round"/>
+    <!-- 中心结 -->
+    <rect x="46" y="32" width="8" height="10" fill="#2D5F3F" stroke="#3A2817" stroke-width="2.5"/>
+    <!-- 高光小点 -->
+    <circle cx="26" cy="58" r="2" fill="#F4E8D0" opacity="0.5"/>
+    <circle cx="74" cy="70" r="2" fill="#F4E8D0" opacity="0.5"/>
+  </svg>`,
+  // 3. 破产救援：钱袋 + 心
+  rescue: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <!-- 袋口扎带 -->
+    <path d="M28 28 Q50 20 72 28 L66 38 L34 38 Z" fill="#3A2817" stroke="#3A2817" stroke-width="2" stroke-linejoin="round"/>
+    <!-- 袋身 -->
+    <path d="M34 38 Q18 56 26 82 Q38 90 50 88 Q62 90 74 82 Q82 56 66 38 Z"
+          fill="#B83A2E" stroke="#3A2817" stroke-width="3" stroke-linejoin="round"/>
+    <!-- 钱币（金色腰带） -->
+    <ellipse cx="50" cy="58" rx="26" ry="4" fill="#D4AF37" stroke="#3A2817" stroke-width="2"/>
+    <!-- 心形贴章 -->
+    <path d="M50 64 C46 60 40 60 40 66 C40 72 50 80 50 80 C50 80 60 72 60 66 C60 60 54 60 50 64 Z"
+          fill="#F4E8D0" stroke="#3A2817" stroke-width="2.5" stroke-linejoin="round"/>
+    <!-- 提手 -->
+    <line x1="50" y1="20" x2="50" y2="10" stroke="#3A2817" stroke-width="2.5"/>
+  </svg>`,
+  // 4. 播放icon：实心三角 + 外圈（用于"立即领取"按钮）
+  play: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <!-- 外圈 -->
+    <circle cx="50" cy="50" r="38" fill="#C9A961" stroke="#3A2817" stroke-width="3"/>
+    <!-- 内圈（更深） -->
+    <circle cx="50" cy="50" r="32" fill="#F4E8D0" stroke="#3A2817" stroke-width="2"/>
+    <!-- 三角（向右） -->
+    <path d="M40 30 L72 50 L40 70 Z" fill="#3A2817" stroke="#3A2817" stroke-width="2.5" stroke-linejoin="round"/>
+  </svg>`,
+};
+
 /* ---------- 幸运值详情解锁状态（一次性全部解锁）---------- */
 const LUCKY_UNLOCK_KEY = 'parcel_lucky_unlock_v1';
 function isLuckyUnlocked() {
@@ -17,6 +85,10 @@ const UI = {
 
   /* ========== 初始化 ========== */
   init() {
+    // ★ 开发者模式：localStorage 有标记就恢复（让测试按钮显示）
+    if (localStorage.getItem('parcel_dev_mode_v1') === '1') {
+      document.body.classList.add('dev-mode');
+    }
     this.renderBuyRow();
     this.renderSkillTabs();
     this.renderSkillList();
@@ -40,6 +112,60 @@ const UI = {
       }
     }, 1000);
     this.setupDragScroll(document.getElementById('buyRow'));
+    this._bindDevLogoTrigger();
+  },
+
+  /* ========== 开发者模式入口：主页 logo 连点 5 次 + 输入密钥 814 ========== */
+  _bindDevLogoTrigger() {
+    const logo = document.getElementById('logoDevTrigger');
+    if (!logo) return;
+    // 已经在开发者模式中：连点 5 下可关闭（方便打包前关掉）
+    let count = 0;
+    let lastTs = 0;
+    logo.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const now = Date.now();
+      if (now - lastTs > 800) count = 0;  // 超过 800ms 间隔算重新开始
+      lastTs = now;
+      count++;
+      if (count < 5) return;
+      count = 0;
+      this._promptDevMode();
+    });
+  },
+  _promptDevMode() {
+    // 1 分钟内被锁过就不要再弹（防误触 / 防别人乱试）
+    const lockUntil = parseInt(localStorage.getItem('parcel_dev_lock_v1') || '0', 10);
+    if (lockUntil > Date.now()) {
+      const remain = Math.ceil((lockUntil - Date.now()) / 1000);
+      this.spawnPityTag('restock-fail', `⏳ ${remain}秒后再试`);
+      return;
+    }
+    const inDev = document.body.classList.contains('dev-mode');
+    const hint = inDev ? '已开启开发者模式，输入"确认"退出：' : '请输入开发者密钥：';
+    const input = window.prompt(hint, '');
+    if (input === null) return;  // 取消
+    if (inDev) {
+      // 退出模式
+      if (input.trim() === '确认') {
+        document.body.classList.remove('dev-mode');
+        localStorage.removeItem('parcel_dev_mode_v1');
+        this.spawnPityTag('restock-fail', '已退出开发者模式');
+      } else {
+        this.spawnPityTag('restock-fail', '已取消');
+      }
+      return;
+    }
+    // 进入模式
+    if (input.trim() === '814') {
+      document.body.classList.add('dev-mode');
+      localStorage.setItem('parcel_dev_mode_v1', '1');
+      this.spawnPityTag('restock', '🛠 开发者模式已开启');
+    } else {
+      // 错误：锁定 60 秒
+      localStorage.setItem('parcel_dev_lock_v1', String(Date.now() + 60 * 1000));
+      this.spawnPityTag('restock-fail', '❌ 密钥错误，60秒内不可再试');
+    }
   },
 
   /* ========== 鼠标 + 触摸横向滚动 ==========
@@ -287,6 +413,7 @@ const UI = {
     if (State.autoSellUnlocked) {
       setTimeout(() => {
         State.coin += item.finalValue;
+        if (typeof addEarned === 'function') addEarned(item.finalValue);
         save();
         this.refreshCoin();
         this.refreshBuyRow();
@@ -296,6 +423,7 @@ const UI = {
     } else {
       // 手动售卖：显示"出售"按钮（这里 MVP 先自动入账，TODO: 改成手动）
       State.coin += item.finalValue;
+      if (typeof addEarned === 'function') addEarned(item.finalValue);
       save();
       this.refreshCoin();
     }
@@ -399,6 +527,75 @@ const UI = {
     else badge.classList.remove('full');
   },
 
+  /**
+   * 存储已满时弹出"双倍领取"弹窗：两个按钮（立即领取 / 看广告双倍）
+   * 存储未满时直接调 collectIdleStorage() 即可，不需要此弹窗
+   */
+  spawnStorageClaimModal(amount) {
+    // 弹窗打开本身不播音效（避免和"领取金币"coin 反馈混淆）
+    document.getElementById('storageClaimModal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'storageClaimModal';
+    modal.className = 'modal storage-claim-modal show';
+    const doubleAmt = amount * 2;
+    modal.innerHTML = `
+      <div class="modal-card storage-claim-card">
+        <button class="arm-close" id="scmClose" aria-label="关闭">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <div class="arm-icon">${AD_SVG.rescue}</div>
+        <div class="arm-sub">选择领取方式</div>
+        <div class="scm-rows">
+          <button class="scm-row scm-row--plain" id="scmPlain">
+            <span class="scm-row-icon">${AD_SVG.play}</span>
+            <span class="scm-row-label">立即领取</span>
+            <span class="scm-row-val">+${formatCoin(amount)} ◉</span>
+          </button>
+          <button class="scm-row scm-row--ad" id="scmDouble">
+            <span class="scm-row-icon">${AD_SVG.tvCoin}</span>
+            <span class="scm-row-label">看广告双倍</span>
+            <span class="scm-row-val">+${formatCoin(doubleAmt)} ◉</span>
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    const close = () => {
+      modal.classList.remove('show');
+      setTimeout(() => modal.remove(), 200);
+    };
+    modal.querySelector('#scmClose')?.addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    // 立即领取（×1）
+    modal.querySelector('#scmPlain')?.addEventListener('click', () => {
+      if (typeof collectIdleStorage === 'function') {
+        const r = collectIdleStorage(1);
+        if (r && r.ok) {
+          if (typeof SFX_ONE !== 'undefined' && SFX_ONE.play) SFX_ONE.play('coin');
+          UI.spawnPityTag && UI.spawnPityTag('collect', `📥 领取 +${r.amount} ◉`);
+        }
+      }
+      close();
+    });
+    // 看广告双倍（×2）
+    modal.querySelector('#scmDouble')?.addEventListener('click', () => {
+      Ad.watch((adRet) => {
+        if (!adRet || !adRet.ok) return;
+        if (typeof collectIdleStorage === 'function') {
+          const r = collectIdleStorage(2);
+          if (r && r.ok) {
+            if (typeof SFX_ONE !== 'undefined' && SFX_ONE.play) SFX_ONE.play('coin');
+            UI.spawnPityTag && UI.spawnPityTag('collect', `📥 双倍领取 +${r.amount} ◉`);
+          }
+        }
+        close();
+      });
+    });
+  },
+
   spawnStorageFullToast() { /* 已废弃：见 refreshRobotChip 头顶小字 */ },
   spawnCantAffordToast(cost, coin) { /* 已废弃：见 refreshRobotChip 头顶小字 */ },
 
@@ -447,6 +644,7 @@ const UI = {
   spawnHiddenReveal(item) {
     // 入账（隐藏款必入账，玩家开出来就获得金币）
     State.coin += item.finalValue;
+    if (typeof addEarned === 'function') addEarned(item.finalValue);
     save();
     this.refreshCoin();
     this.refreshBuyRow();
@@ -701,6 +899,8 @@ const UI = {
   handleUpgrade(id) {
     const result = upgradeSkill(id);
     if (!result.ok) return;
+    // 升级音效
+    if (typeof SFX_ONE !== 'undefined' && SFX_ONE.play) SFX_ONE.play('upgrade');
     const wasCompleted = (typeof isGameCompleted === 'function') && isGameCompleted();
     this.refreshCoin();
     this.renderSkillList();
@@ -734,6 +934,8 @@ const UI = {
         this.spawnPityTag('skill', `❌ ${result.msg || '解锁失败'}`);
         return;
       }
+      // 升级音效（看广告解锁走同一条链）
+      if (typeof SFX_ONE !== 'undefined' && SFX_ONE.play) SFX_ONE.play('upgrade');
       this.refreshCoin();
       this.renderSkillList();
       this.refreshStatsPreview();
@@ -746,6 +948,17 @@ const UI = {
       }
       if (id === 'B_restock') this.refreshRestockToggle();
       this.spawnPityTag('skill', `🎉 ${SKILL[id].name} 已解锁（看广告）`);
+      // 弹窗告诉玩家获得了什么（与升级页用同一个 SVG 图标）
+      const skillDef = SKILL[id];
+      this.spawnAdRewardModal({
+        svg: skillDef.icon,
+        title: '看广告获得',
+        sub: skillDef?.desc || '已永久解锁',
+        lines: [
+          { label: '已解锁', value: skillDef?.name || id, valueClass: 'pos' },
+        ],
+        autoClose: 2200,
+      });
     }, { skipReward: true });
   },
 
@@ -822,11 +1035,17 @@ const UI = {
 
     // 挂机存储：角标点击即领取
     document.getElementById('storageBadge')?.addEventListener('click', () => {
-      if (typeof collectIdleStorage === 'function') {
-        const r = collectIdleStorage();
-        if (r && r.ok) {
-          this.spawnPityTag('collect', `📥 领取 +${r.amount} ◉`);
-        }
+      if (typeof collectIdleStorage !== 'function') return;
+      // 存储已满：弹"双倍领取"弹窗（看广告 ×2 / 立即 ×1）
+      if (State.idleStorage >= State.idleStorageMax && State.idleStorage > 0) {
+        this.spawnStorageClaimModal(State.idleStorage);
+        return;
+      }
+      // 存储未满：直接领取
+      const r = collectIdleStorage(1);
+      if (r && r.ok) {
+        if (typeof SFX_ONE !== 'undefined' && SFX_ONE.play) SFX_ONE.play('coin');
+        this.spawnPityTag('collect', `📥 领取 +${r.amount} ◉`);
       }
     });
 
@@ -846,6 +1065,13 @@ const UI = {
       if (e.target.id === 'codexModal') this.closeCodex();
     });
     document.getElementById('btnCodexClaimAll')?.addEventListener('click', () => this.handleClaimAllCodex());
+
+    // 成就
+    document.getElementById('btnAchievement')?.addEventListener('click', () => this.openAchievement());
+    document.getElementById('btnAchievementClose')?.addEventListener('click', () => this.closeAchievement());
+    document.getElementById('achievementModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'achievementModal') this.closeAchievement();
+    });
 
     // 技能卡抽卡
     document.getElementById('btnCard')?.addEventListener('click', () => this.openCard());
@@ -892,6 +1118,15 @@ const UI = {
       this.refreshCoin();
       this.refreshBuyRow();
       this.refreshSkillList();
+      this.spawnAdRewardModal({
+        svg: AD_SVG.tvCoin,
+        title: '看完广告',
+        sub: '感谢支持，金币已入账',
+        lines: [
+          { label: '本次奖励', value: `+${formatCoin(r.reward)} ◉`, valueClass: 'pos' },
+        ],
+        autoClose: 1800,
+      });
     });
   },
 
@@ -930,24 +1165,22 @@ const UI = {
     }
     // 暂停时：右下角小机器人定在第一帧，不再循环 3 帧动画
     chip.classList.toggle('paused', !!State.autoOpenPaused);
-    // 系统原因状态：cantAfford（红）/ storageFull（黄）→ chip 加 class + 头顶小字
+    // 系统原因状态：cantAfford（红）/ storageFull → chip 加 class；同时显示 tip 文字
     const reason = State.autoOpenBlockReason;
     chip.classList.toggle('cant-afford', reason === 'cantAfford');
     chip.classList.toggle('storage-full', reason === 'storageFull');
+    // 同步显示头顶 tip 气泡（仅系统原因时显示文字，玩家手动 paused 不显示）
     const tip = document.getElementById('robotTip');
     if (tip) {
+      tip.classList.remove('cant-afford', 'storage-full', 'manual');
       if (reason === 'cantAfford') {
-        tip.textContent = '金币不足';
+        tip.textContent = '金币不足，已暂停';
+        tip.classList.add('cant-afford');
         tip.hidden = false;
-        tip.className = 'robot-tip cant-afford';
       } else if (reason === 'storageFull') {
-        tip.textContent = '存储已满';
+        tip.textContent = '仓库已满，已暂停';
+        tip.classList.add('storage-full');
         tip.hidden = false;
-        tip.className = 'robot-tip storage-full';
-      } else if (State.autoOpenPaused) {
-        tip.textContent = '已暂停';
-        tip.hidden = false;
-        tip.className = 'robot-tip manual';
       } else {
         tip.hidden = true;
       }
@@ -1237,18 +1470,16 @@ const UI = {
 
   /**
    * 同步头部"解锁收益分析"按钮状态
-   * 已解锁 → 灰显, 文案改为"已开启", 不响应点击
    * 未解锁 → 橙色高亮, ▶ icon 持续 pulse
+   * 已解锁 → 整个按钮隐藏（留空白）
    */
   refreshLuckyUnlockBtn() {
     const btn = document.getElementById('btnLuckyUnlockAll');
     if (!btn) return;
     if (isLuckyUnlocked()) {
-      btn.classList.add('unlocked');
-      btn.disabled = true;
-      btn.title = '已解锁所有档位的收益数据';
+      btn.style.display = 'none';
     } else {
-      btn.classList.remove('unlocked');
+      btn.style.display = '';
       btn.disabled = false;
       btn.title = '看广告解锁所有档位的赚钱概率和平均赚';
     }
@@ -1278,8 +1509,16 @@ const UI = {
       // 走激励视频：用户完整观看后才发奖并关闭弹窗
       Ad.watch((r) => {
         if (!r || !r.ok) return;
-        this.spawnPityTag('lucky', `📺 广告奖励 +${formatCoin(r.reward)} ◉`);
-        close();
+        this.spawnAdRewardModal({
+          svg: AD_SVG.rescue,
+          title: '破产救援成功',
+          sub: '继续拆盲盒吧！',
+          lines: [
+            { label: '本次奖励', value: `+${formatCoin(r.reward)} ◉`, valueClass: 'pos' },
+          ],
+          onClose: close,
+          autoClose: 1800,
+        });
       });
     });
     document.getElementById('bnkReset')?.addEventListener('click', () => {
@@ -1324,15 +1563,20 @@ const UI = {
           <span class="luc-cost"><span class="c">◉</span> ${formatCoin(cost)}</span>
         </button>`;
       }
-      // 平均赚(原"期望盈亏", 改用口语)
+      // 期望盈亏（与 ROI 一起显示）
       const evClass = t.expectedProfit >= 0 ? 'pos' : 'neg';
       const evSign = t.expectedProfit >= 0 ? '+' : '';
+      const roiPct = (t.expectedROI * 100 - 100).toFixed(0);
+      const roiSign = roiPct >= 0 ? '+' : '';
       // 按解锁状态决定显示(全局一次性解锁)
       const winPctDisplay = isUnlocked
         ? `${winPct.toFixed(1)}%`
         : `<span class="lc-locked" title="看广告解锁">?</span>`;
-      const evDisplay = isUnlocked
+      const evValDisplay = isUnlocked
         ? `<span class="${evClass}">${evSign}${formatCoin(t.expectedProfit)}</span>`
+        : `<span class="lc-locked" title="看广告解锁">?</span>`;
+      const roiValDisplay = isUnlocked
+        ? `<span class="${evClass}">${roiSign}${roiPct}%</span>`
         : `<span class="lc-locked" title="看广告解锁">?</span>`;
       // 跟 tierPicker 弹窗同款卡片结构（restock-card 视觉），但底部加等级 + 升级
       return `<div class="lucky-card restock-card ${tier.className || ''} ${isMax ? 'maxed' : ''} ${isUnlocked ? 'unlocked' : 'locked'}">
@@ -1354,9 +1598,13 @@ const UI = {
             <span class="lc-info-label">赚钱概率</span>
             <span class="lc-info-val">${winPctDisplay}</span>
           </div>
-          <div class="lc-info-block" style="text-align:right;">
-            <span class="lc-info-label">平均赚</span>
-            <span class="lc-info-val">${evDisplay}</span>
+          <div class="lc-info-block" style="text-align:center;">
+            <span class="lc-info-label">期望</span>
+            <span class="lc-info-val">${evValDisplay}</span>
+          </div>
+          <div class="lc-info-block" style="text-align:center;">
+            <span class="lc-info-label">ROI</span>
+            <span class="lc-info-val">${roiValDisplay}</span>
           </div>
           <div style="display:flex;align-items:center;">
             ${btnHtml}
@@ -1378,6 +1626,8 @@ const UI = {
       this.spawnPityTag('restock-fail', result.msg);
       return;
     }
+    // 升级音效
+    if (typeof SFX_ONE !== 'undefined' && SFX_ONE.play) SFX_ONE.play('upgrade');
     const wasCompleted = (typeof isGameCompleted === 'function') && isGameCompleted();
     // 升级成功：重渲染弹窗 + 首页预览 + 金币
     this.refreshCoin();
@@ -1404,6 +1654,231 @@ const UI = {
   },
   closeClearModal() {
     document.getElementById('clearModal')?.classList.remove('show');
+  },
+
+  /**
+   * 广告完成通用弹窗：看完广告后告诉用户得到了什么
+   * @param {Object} opts
+   * @param {string} opts.svg     - 大图标 SVG 字符串（必填，自己画）
+   * @param {string} opts.title   - 大标题，如 "看完广告"
+   * @param {string} opts.sub     - 副标题/说明
+   * @param {Array}  [opts.lines] - 详细行 [{label, value, valueClass}]
+   * @param {Function} [opts.onClose] - 关闭后回调
+   * @param {number}  [opts.autoClose=1800] - 自动关闭毫秒（0=不自动关）
+   */
+  spawnAdRewardModal(opts) {
+    if (!opts) return;
+    // 升级音效（与升级页一致）
+    if (typeof SFX_ONE !== 'undefined' && SFX_ONE.play) SFX_ONE.play('upgrade');
+    // 同一时刻只显示一个广告奖励弹窗
+    document.getElementById('adRewardModal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'adRewardModal';
+    modal.className = 'modal ad-reward-modal show';
+    const linesHtml = (opts.lines || []).map(l => `
+        <div class="arm-row">
+          <span class="arm-label">${l.label}</span>
+          <span class="arm-val ${l.valueClass || ''}">${l.value}</span>
+        </div>`).join('');
+    modal.innerHTML = `
+      <div class="modal-card ad-reward-card">
+        <button class="arm-close" id="armClose" aria-label="关闭">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <div class="arm-icon">${opts.svg || ''}</div>
+        <div class="arm-title">${opts.title || '看完广告'}</div>
+        ${opts.sub ? `<div class="arm-sub">${opts.sub}</div>` : ''}
+        ${linesHtml ? `<div class="arm-lines">${linesHtml}</div>` : ''}
+      </div>
+    `;
+    document.body.appendChild(modal);
+    const close = () => {
+      modal.classList.remove('show');
+      setTimeout(() => modal.remove(), 200);
+      if (typeof opts.onClose === 'function') opts.onClose();
+    };
+    modal.querySelector('#armClose')?.addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    const autoMs = opts.autoClose == null ? 1800 : opts.autoClose;
+    if (autoMs > 0) setTimeout(close, autoMs);
+  },
+
+  /* ========== 成就系统 ========== */
+  /* 时间戳（秒）转 YYYY-MM-DD HH:MM（成就解锁时间显示） */
+  _achFormatTs(ts) {
+    if (!ts) return '';
+    const d = new Date(ts * 1000);
+    const pad = n => (n < 10 ? '0' + n : '' + n);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  },
+
+  /* 打开成就页 */
+  openAchievement() {
+    this.renderAchievementContent();
+    document.getElementById('achievementModal')?.classList.add('show');
+  },
+  closeAchievement() {
+    document.getElementById('achievementModal')?.classList.remove('show');
+  },
+
+  /* 渲染成就页主体（5 个分类：basic / rare / codex / robot / final）
+   * 视觉：克制的卡片
+   *   已解锁 = 实色墨边卡 + 圆形红色 ✓ 戳 + 解锁时间
+   *   未解锁 = 浅色虚线边 + 灰 icon + 条件文字
+   * icon 字段既支持 emoji（'📦'）也支持 SVG 字符串（ICON.robot），
+   * 通过 .startsWith('<svg') 区分；统一用 innerHTML 注入（数据来自 config 内部定义）。
+   */
+  renderAchievementContent() {
+    const body = document.getElementById('achievementModalBody');
+    if (!body) return;
+    if (typeof ACHIEVEMENTS === 'undefined' || !Array.isArray(ACHIEVEMENTS)) {
+      body.innerHTML = '<div class="ach-empty">成就数据未加载</div>';
+      return;
+    }
+    const catCn = (typeof ACHIEVEMENT_CATEGORY_CN !== 'undefined') ? ACHIEVEMENT_CATEGORY_CN : {};
+    const order = ['basic', 'rare', 'codex', 'robot', 'final'];
+    // 按 category 分组
+    const groups = {};
+    for (const id of order) groups[id] = [];
+    for (const ach of ACHIEVEMENTS) {
+      if (!groups[ach.category]) groups[ach.category] = [];
+      groups[ach.category].push(ach);
+    }
+    // 统计
+    let unlockedCount = 0;
+    for (const ach of ACHIEVEMENTS) {
+      if (isAchievementUnlocked(ach.id)) unlockedCount++;
+    }
+    // 头部进度：xx / 18
+    const headMeta = document.getElementById('achHeadMeta');
+    if (headMeta) headMeta.textContent = `${unlockedCount} / ${ACHIEVEMENTS.length}`;
+    const headFill = document.getElementById('achHeadFill');
+    if (headFill) {
+      const pct = ACHIEVEMENTS.length > 0 ? Math.round((unlockedCount / ACHIEVEMENTS.length) * 100) : 0;
+      headFill.style.width = pct + '%';
+    }
+
+    // icon HTML：emoji 字符 or 完整 <svg> 字符串统一注入
+    const iconHtml = (icon) => (typeof icon === 'string' && icon.startsWith('<svg'))
+      ? icon
+      : `<span class="ach-ic-emoji">${icon || '🏆'}</span>`;
+
+    // 进度条辅助：仅未解锁的 robotRunStreak / robotRunAcc 成就卡显示
+    const progressHtml = (ach) => {
+      if (isAchievementUnlocked(ach.id)) return '';
+      if (ach.kind !== 'robotRunStreak' && ach.kind !== 'robotRunAcc') return '';
+      const cur  = ach.kind === 'robotRunStreak' ? (State.robotRunStreakSec || 0) : (State.robotRunAccSec || 0);
+      const pct  = Math.min(100, Math.round((cur / ach.threshold) * 100));
+      const curMin  = (cur / 60).toFixed(cur >= 60 ? 1 : 1);
+      const tgtMin  = (ach.threshold / 60).toFixed(0);
+      return `<div class="ach-card-progress">
+        <div class="ach-card-progress-label">${curMin} / ${tgtMin} 分钟</div>
+        <div class="ach-card-progress-track">
+          <div class="ach-card-progress-fill" style="width: ${pct}%"></div>
+        </div>
+      </div>`;
+    };
+
+    let html = '';
+    for (const catId of order) {
+      const list = groups[catId];
+      if (!list || list.length === 0) continue;
+      const catUnlocked = list.filter(a => isAchievementUnlocked(a.id)).length;
+      const itemsHtml = list.map(ach => {
+        const unlocked = isAchievementUnlocked(ach.id);
+        const data = (State.achievements && State.achievements[ach.id]) || null;
+        const tsStr = (unlocked && data && data.ts) ? this._achFormatTs(data.ts) : '';
+        const cls = unlocked ? 'ach-item unlocked' : 'ach-item locked';
+        // 右上角徽标：解锁 = ✓邮戳 / 未解锁 = 锁
+        const corner = unlocked
+          ? `<div class="ach-corner ach-corner-stamp" title="已收集">✓</div>`
+          : `<div class="ach-corner ach-corner-lock" title="未解锁">·</div>`;
+        return `
+        <div class="${cls}">
+          ${corner}
+          <div class="ach-ic-box">${iconHtml(ach.icon)}</div>
+          <div class="ach-info">
+            <div class="ach-name">${ach.name}</div>
+            <div class="ach-desc" title="${ach.desc}">${ach.desc}</div>
+            <div class="ach-meta">${unlocked
+              ? `<span class="ach-meta-collected">已收入</span><span class="ach-meta-dot">·</span><span class="ach-meta-ts">${tsStr}</span>`
+              : `<span class="ach-meta-hint">尚待解锁</span>`}</div>
+            ${progressHtml(ach)}
+          </div>
+        </div>`;
+      }).join('');
+      html += `<div class="ach-section">
+        <div class="ach-sec-head">
+          <span class="ach-sec-name">${catCn[catId] || catId}</span>
+          <span class="ach-sec-meta">${catUnlocked} / ${list.length}</span>
+        </div>
+        <div class="ach-grid">${itemsHtml}</div>
+      </div>`;
+    }
+    body.innerHTML = html;
+  },
+
+  /* 成就解锁弹窗（集邮册仪式感：撒金 + 烫金奖章 + ribbon）
+   * 复用 .ad-reward-modal 的 mask 容器与 armPop 动画；
+   * 内层 .ach-unlock-card 独立设计。
+   */
+  spawnAchievementModal(ach) {
+    if (!ach) return;
+    if (typeof SFX_ONE !== 'undefined' && SFX_ONE.play) SFX_ONE.play('upgrade');
+    document.getElementById('achievementUnlockModal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'achievementUnlockModal';
+    modal.className = 'modal ad-reward-modal show';
+    // 解锁时间（与成就页一致）
+    const data = (State.achievements && State.achievements[ach.id]) || null;
+    const tsStr = (data && data.ts) ? this._achFormatTs(data.ts) : '';
+    modal.innerHTML = `
+      <div class="modal-card ad-reward-card ach-unlock-card">
+        <button class="arm-close" id="aumClose" aria-label="关闭">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <!-- 4 角撒金小星点（CSS 动画旋转 + 缩放） -->
+        <div class="ach-sparkles" aria-hidden="true">
+          <span class="ach-spk ach-spk-1">✦</span>
+          <span class="ach-spk ach-spk-2">✦</span>
+          <span class="ach-spk ach-spk-3">✦</span>
+          <span class="ach-spk ach-spk-4">✦</span>
+          <span class="ach-spk ach-spk-5">✦</span>
+          <span class="ach-spk ach-spk-6">✦</span>
+        </div>
+        <!-- 烫金奖章：双圈金边 + 内白 + 中心 emoji -->
+        <div class="ach-medal" aria-hidden="true">
+          <div class="ach-medal-ring ach-medal-ring-outer"></div>
+          <div class="ach-medal-ring ach-medal-ring-inner"></div>
+          <div class="ach-medal-emoji">${ach.icon || '🏆'}</div>
+        </div>
+        <div class="ach-unlock-eyebrow">★ ACHIEVEMENT UNLOCKED ★</div>
+        <div class="ach-unlock-name">${ach.name}</div>
+        <div class="ach-unlock-divider"><span></span><span></span></div>
+        <div class="ach-unlock-desc">${ach.desc}</div>
+        <div class="ach-unlock-ribbon">
+          <span class="ach-ribbon-side"></span>
+          <span class="ach-ribbon-text">已收入集邮册</span>
+          <span class="ach-ribbon-side"></span>
+        </div>
+        ${tsStr ? `<div class="ach-unlock-ts">${tsStr}</div>` : ''}
+      </div>
+    `;
+    document.body.appendChild(modal);
+    const close = () => {
+      modal.classList.remove('show');
+      setTimeout(() => modal.remove(), 200);
+    };
+    modal.querySelector('#aumClose')?.addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    // 解锁弹窗停留稍长（3.6s）让玩家看清新名 + 撒金动画
+    setTimeout(close, 3600);
   },
 
   /* ========== 图鉴系统 ========== */
@@ -1557,23 +2032,61 @@ const UI = {
     dot.hidden = !hasUnclaimed;
   },
 
-  /* ========== 重新开始（测试用：清存档并刷新）========== */
+  /* ========== 重新开始（玩家可见）：弹窗二次确认 → 清存档并刷新 ========== */
   handleReset() {
-    if (!confirm('确定清除存档重新开始？所有金币、等级、幸运值、图鉴都会清空。')) return;
-    try {
-      localStorage.removeItem(CONFIG.SAVE_KEY);
-      // ★ 顺带清掉看广告解锁收益分析的状态，否则重置后还显示
-      localStorage.removeItem(LUCKY_UNLOCK_KEY);
-    } catch (e) {
-      console.warn('清除存档失败', e);
-    }
-    location.reload();
+    this.spawnResetConfirmModal();
+  },
+
+  /* ========== 重置确认弹窗（游戏内弹窗，UI 风格统一）========== */
+  spawnResetConfirmModal() {
+    if (typeof SFX_ONE !== 'undefined' && SFX_ONE.play) SFX_ONE.play('tap');
+    document.getElementById('resetConfirmModal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'resetConfirmModal';
+    modal.className = 'modal reset-confirm-modal show';
+    modal.innerHTML = `
+      <div class="modal-card reset-confirm-card">
+        <button class="arm-close" id="rcmClose" aria-label="关闭">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <div class="arm-icon">${AD_SVG.rescue || ''}</div>
+        <div class="arm-title">重置游戏</div>
+        <div class="arm-sub">确定放弃当前进度？所有金币、等级、幸运值、图鉴、成就都会清空，无法恢复。</div>
+        <div class="rcm-rows">
+          <button class="rcm-btn rcm-btn--cancel" id="rcmCancel">取消</button>
+          <button class="rcm-btn rcm-btn--ok" id="rcmOk">确认重置</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    const close = () => {
+      modal.classList.remove('show');
+      setTimeout(() => modal.remove(), 200);
+    };
+    const doReset = () => {
+      try {
+        localStorage.removeItem(CONFIG.SAVE_KEY);
+        localStorage.removeItem(LUCKY_UNLOCK_KEY);
+      } catch (e) {
+        console.warn('清除存档失败', e);
+      }
+      location.reload();
+    };
+    modal.querySelector('#rcmClose')?.addEventListener('click', close);
+    modal.querySelector('#rcmCancel')?.addEventListener('click', close);
+    modal.querySelector('#rcmOk')?.addEventListener('click', doReset);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
   },
 
   renderStatsContent(stats) {
     const body = document.getElementById('statsModalBody');
     if (!body) return;
     const fx = stats.effects;
+    // ★ 期望/ROI 显示闸门：仅当用户在幸运值处看广告解锁后才显示
+    const showEv = isLuckyUnlocked();
 
     // 通关状态：仅当所有可购买升级全满级时显示
     const completed = (typeof isGameCompleted === 'function') && isGameCompleted();
@@ -1611,6 +2124,10 @@ const UI = {
       const evSign = t.expectedProfit >= 0 ? '+' : '';
       const roiPct = (t.expectedROI * 100 - 100).toFixed(0);
       const roiSign = roiPct >= 0 ? '+' : '';
+      // ★ 期望/ROI 仅在解锁收益分析后才显示（未解锁 = 空白）
+      const thEvHtml = showEv
+        ? `<span class="th-ev ${evClass}">期望 ${evSign}${formatCoin(t.expectedProfit)} · ROI ${roiSign}${roiPct}%</span>`
+        : '';
       const colHead = `<div class="tier-colhead">
         <span></span>
         <span class="tch-name">物品</span>
@@ -1622,7 +2139,7 @@ const UI = {
       tiersHtml += `<div class="tier-block">
         <div class="tier-head">
           <span class="th-name"><span class="th-ic">${t.icon}</span>${t.name} · ${formatCoin(t.price)} ◉</span>
-          <span class="th-ev ${evClass}">期望 ${evSign}${formatCoin(t.expectedProfit)} · ROI ${roiSign}${roiPct}%</span>
+          ${thEvHtml}
         </div>
         ${colHead}
         ${rows}

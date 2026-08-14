@@ -185,13 +185,20 @@ const BGM = {
     const btn = document.getElementById('btnBgm');
     if (btn) btn.classList.toggle('playing', this.isPlaying);
     this.updateGlobalBtn();
+    // 弹窗打开时，行上的 is-playing class 也要同步刷新（暂停/继续时行高亮和 pulse 动效要立即更新）
+    const mask = document.getElementById('bgmModal');
+    if (mask && mask.classList.contains('show')) {
+      this.renderPicker();
+    }
   },
 
-  /** 更新弹窗内全局按钮文字 */
+  /** 更新弹窗内全局按钮：按 isPlaying 切 class + 文字，icon 由 CSS 控制显示 */
   updateGlobalBtn() {
     const btn = document.getElementById('btnBgmGlobalToggle');
     if (!btn) return;
-    btn.textContent = this.isPlaying ? '⏸ 全部暂停' : '▶ 全部播放';
+    btn.classList.toggle('is-playing', this.isPlaying);
+    const label = btn.querySelector('.bgm-toggle-label');
+    if (label) label.textContent = this.isPlaying ? '全部暂停' : '全部播放';
   },
 
   /** 设置音量（0-1），持久化 */
@@ -312,6 +319,7 @@ const SFX_ONE = {
     hidden:   'assets/audio/sfx_hidden.mp3',    // 抽出隐藏款时
     coin:     'assets/audio/sfx_coin.mp3',      // 领取金币时（图鉴奖励 / 机器人存储）
     cardFlip: 'assets/audio/sfx_card_flip.mp3', // 技能里抽卡翻牌时
+    upgrade:  'assets/audio/sfx_upgrade.mp3',   // 所有升级时（技能 / 幸运值 / 看广告解锁）
   },
   audio: null,
   volume: 0.8,

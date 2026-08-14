@@ -116,31 +116,33 @@ const Ad = {
   },
 
   /**
-   * 计算本次广告金币 = 主战场 30 秒期望盈亏
-   * 主战场 = 玩家当前金币能买得起的最高档盲盒
-   * 30 秒 = 玩家手点 10 个盲盒
-   * 满级后为正数(预期赚), Lv.0 时为负数(预期亏) → 自动保底 50
-   * 破产时 State.coin < 50, 主战场 = 普通, 期望亏, 也走保底
+   * 计算本次广告金币
+   *
+   * 机制：取所有档位中"赚钱概率 > 50%"的最高档
+   *   等级顺序 mythic > epic > luxury > premium > ordinary
+   *   该档单次期望盈亏 × 10（×10 = 30 秒手点收益）
+   *   不封顶
+   *   0 级玩家（无档位 winPct > 50%）保底 50
+   *
+   * 例（代码实测）：
+   *   0 级：仅 ordinary winPct=51.8%>50% → +1.9 × 10 = 19 → 保底 50
+   *   Lv.1：mythic winPct=56.6%>50% → +1544 × 10 = 15442
+   *   Lv.5：mythic winPct=85.0%>50% → +4897 × 10 = 48970
    */
   getReward() {
-    const thresholds = [
-      { id: 'mythic',  min: 5000 },
-      { id: 'epic',    min: 1000 },
-      { id: 'luxury',  min: 200  },
-      { id: 'premium', min: 50   },
-      { id: 'ordinary', min: 0   },
-    ];
-    let mainTier = 'ordinary';
-    for (const t of thresholds) {
-      if (State.coin >= t.min) { mainTier = t.id; break; }
+    if (typeof getCurrentStats !== 'function') return 50;
+    const stats = getCurrentStats();
+    // 优先级：高档 → 低档
+    const order = ['mythic', 'epic', 'luxury', 'premium', 'ordinary'];
+    for (const tierId of order) {
+      const t = stats.tiers[tierId];
+      if (t && (t.winPct || 0) > 50) {
+        // 该档 winPct>50%，作为广告奖励档
+        return Math.max(50, Math.round((t.expectedProfit || 0) * 10));
+      }
     }
-    let profit = 0;
-    if (typeof getCurrentStats === 'function') {
-      const stats = getCurrentStats();
-      profit = stats.tiers[mainTier]?.expectedProfit || 0;
-    }
-    // 30 秒 × 期望盈亏(亏则保底)
-    return Math.max(50, Math.round(Math.max(0, profit) * 10));
+    // 没有档位 winPct>50%（0 级玩家）：保底 50
+    return 50;
   },
 
   /**
@@ -178,6 +180,7 @@ const Ad = {
    */
   _grant(amount) {
     State.coin += amount;
+    if (typeof addEarned === 'function') addEarned(amount);
     save();
     if (typeof UI !== 'undefined') {
       if (UI.refreshCoin) UI.refreshCoin();
